@@ -45,8 +45,8 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./fyne-cross/bin/windows-amd64/rd15(16) tool.exe
-          asset_name: rd15(16) tool.exe
+          asset_path: ./fyne-cross/bin/windows-amd64/rd15tool.exe.zip
+          asset_name: rd15tool.exe.zip
           asset_content_type: application/octet-stream
 
       - name: Create GitHub Release
