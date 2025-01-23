@@ -17,3 +17,7 @@ This application is a GUI-based tool for managing SSH and Sing-box configuration
 - Prepare sing-box config and choose your file in "Choose singbox config".
 - Press "Install sing-box" 
 - Enjoy!
+
+## Screen
+
+![Screenshot.png](Screenshot.png)
