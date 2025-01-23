@@ -1,4 +1,4 @@
-# SSH and Sing-box Configuration Tool
+# RD15(16) Configuration Tool
 
 This application is a GUI-based tool for managing SSH and Sing-box configurations on routers. It uses the [Fyne](https://fyne.io/) framework for the graphical interface and supports operations like enabling SSH, installing Sing-box, and managing configurations.
 
