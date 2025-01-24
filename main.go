@@ -38,6 +38,8 @@ type AppWindow struct {
 	logText            *widget.TextGrid
 	logContent         string
 	singboxConfigInput *widget.Entry
+	sshPasswordLabel   *widget.Label
+	sshPasswordInput   *widget.Entry
 }
 
 type Response struct {
@@ -139,7 +141,7 @@ func calcPasswd(sn string) string {
 
 func (w *AppWindow) loginSSH() (*ssh.Client, error) {
 	ip := w.ipInput.Text
-	routerPassword := w.passwordInput.Text // Get the password from the input field
+	routerPassword := w.passwordInput.Text
 
 	_, serialNumber := w.query(ip, routerPassword)
 	password := calcPasswd(serialNumber)
@@ -170,8 +172,10 @@ func (w *AppWindow) loginSSH() (*ssh.Client, error) {
 		return nil, err
 	}
 	defer session.Close()
+	w.sshPasswordInput.SetText(password)
 	w.logContent += fmt.Sprintf("SSH login Success!\n")
 	w.logText.SetText(w.logContent)
+
 	return client, nil
 }
 
@@ -611,6 +615,10 @@ func main() {
 	passwordInput := widget.NewEntry()
 	passwordInput.SetText("")
 
+	sshPasswordLabel := widget.NewLabel("SSH Password:")
+	sshPasswordInput := widget.NewEntry()
+	sshPasswordInput.Disable()
+
 	singboxConfigInput := widget.NewEntry()
 
 	openFileButton := widget.NewButton("Choose singbox config", func() {
@@ -657,7 +665,7 @@ func main() {
 		appWindow.enableSSHPermanent()
 	})
 
-	installSingBox := widget.NewButton("Install sing-box    ", func() {
+	installSingBox := widget.NewButton("Install sing-box", func() {
 		appWindow := &AppWindow{
 			stokInput:          stokInput,
 			ipInput:            ipInput,
@@ -670,10 +678,12 @@ func main() {
 
 	trySSHLoginButton := widget.NewButton("Try SSH Login", func() {
 		appWindow := &AppWindow{
-			stokInput:     stokInput,
-			ipInput:       ipInput,
-			passwordInput: passwordInput,
-			logText:       logText,
+			stokInput:        stokInput,
+			ipInput:          ipInput,
+			passwordInput:    passwordInput,
+			logText:          logText,
+			sshPasswordLabel: sshPasswordLabel,
+			sshPasswordInput: sshPasswordInput,
 		}
 		appWindow.loginSSH()
 	})
@@ -724,7 +734,7 @@ func main() {
 	content := container.NewVBox(
 		stokLabel, stokInput,
 		ipLabel, ipInput,
-		passwordLabel, passwordInput,
+		passwordLabel, passwordInput, sshPasswordLabel, sshPasswordInput,
 		sendButton, trySSHLoginButton, sshLoginButton, openFileButton, singboxConfigInput, installSingBox, installSingBoxConfig, startSingBox, stopSingBox, enableSingboxPermanent,
 		logText,
 	)
