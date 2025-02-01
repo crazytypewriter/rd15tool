@@ -173,9 +173,9 @@ func (w *AppWindow) loginSSH() (*ssh.Client, error) {
 	}
 	defer session.Close()
 
-	if w.sshPasswordInput.Text == "" {
-		w.sshPasswordInput.SetText(password)
-	}
+	//if w.sshPasswordInput.Text == "" {
+	//	w.sshPasswordInput.SetText(password)
+	//}
 
 	w.logContent += fmt.Sprintf("SSH login Success!\n")
 	w.logText.SetText(w.logContent)
