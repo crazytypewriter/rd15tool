@@ -143,13 +143,13 @@ func (w *AppWindow) loginSSH() (*ssh.Client, error) {
 	ip := w.ipInput.Text
 	routerPassword := w.passwordInput.Text
 
-	_, serialNumber := w.query(ip, routerPassword)
-	password := calcPasswd(serialNumber)
-
-	if ip == "" || password == "" {
+	if ip == "" || routerPassword == "" {
 		w.logText.SetText("Please provide both IP address and password.")
 		return nil, nil
 	}
+
+	_, serialNumber := w.query(ip, routerPassword)
+	password := calcPasswd(serialNumber)
 
 	clientConfig := &ssh.ClientConfig{
 		User:              "root", // Adjust the user as necessary
@@ -172,7 +172,11 @@ func (w *AppWindow) loginSSH() (*ssh.Client, error) {
 		return nil, err
 	}
 	defer session.Close()
-	w.sshPasswordInput.SetText(password)
+
+	if w.sshPasswordInput.Text == "" {
+		w.sshPasswordInput.SetText(password)
+	}
+
 	w.logContent += fmt.Sprintf("SSH login Success!\n")
 	w.logText.SetText(w.logContent)
 
@@ -267,7 +271,6 @@ func (w *AppWindow) enableSingboxPermanent() {
 func runSSHCommand(client *ssh.Client, args ...string) error {
 	session, err := client.NewSession()
 	cmd := exec.Command(args[0], args[1:]...)
-	fmt.Printf("Executing command: %s\n", cmd)
 	err = session.Run(cmd.String())
 	if err != nil {
 		return err
@@ -516,6 +519,11 @@ func (w *AppWindow) installSingBox() {
 
 	client, err := w.loginSSH()
 
+	if err != nil {
+		w.logContent += fmt.Sprintf("Error ssh login %s.\n", err.Error())
+		w.logText.SetText(w.logContent)
+	}
+
 	err = runSSHCommand(client, "mkdir", "-p", "/data/etc/sing-box")
 	if err != nil {
 		w.logContent += fmt.Sprintf("Error mkdir for sing-box %s.\n", err.Error())
@@ -540,18 +548,18 @@ func (w *AppWindow) installSingBox() {
 	w.logContent += fmt.Sprintf("Sing-box init file copied to router success!.\n")
 	w.logText.SetText(w.logContent)
 
-	path := w.singboxConfigInput.Text
-	if strings.HasPrefix(path, "file://") {
-		path = strings.TrimPrefix(path, "file://")
-	}
+	//path := w.singboxConfigInput.Text
+	//if strings.HasPrefix(path, "file://") {
+	//	path = strings.TrimPrefix(path, "file://")
+	//}
 
-	err = copyFileToRemote(client, path, "/data/etc/sing-box/config.json")
-	if err != nil {
-		w.logContent += fmt.Sprintf("Error copying config file to router %s.\n", err.Error())
-		w.logText.SetText(w.logContent)
-	}
-	w.logContent += fmt.Sprintf("Sing-box config file copied to router success!.\n")
-	w.logText.SetText(w.logContent)
+	//err = copyFileToRemote(client, path, "/data/etc/sing-box/config.json")
+	//if err != nil {
+	//	w.logContent += fmt.Sprintf("Error copying config file to router %s.\n", err.Error())
+	//	w.logText.SetText(w.logContent)
+	//}
+	//w.logContent += fmt.Sprintf("Sing-box config file copied to router success!.\n")
+	//w.logText.SetText(w.logContent)
 }
 
 func (w *AppWindow) installSingBoxConfig() {
@@ -695,6 +703,8 @@ func main() {
 			passwordInput:      passwordInput,
 			logText:            logText,
 			singboxConfigInput: singboxConfigInput,
+			sshPasswordLabel:   sshPasswordLabel,
+			sshPasswordInput:   sshPasswordInput,
 		}
 		appWindow.installSingBoxConfig()
 	})
@@ -706,6 +716,8 @@ func main() {
 			passwordInput:      passwordInput,
 			logText:            logText,
 			singboxConfigInput: singboxConfigInput,
+			sshPasswordLabel:   sshPasswordLabel,
+			sshPasswordInput:   sshPasswordInput,
 		}
 		appWindow.startSingBox()
 	})
@@ -717,16 +729,20 @@ func main() {
 			passwordInput:      passwordInput,
 			logText:            logText,
 			singboxConfigInput: singboxConfigInput,
+			sshPasswordLabel:   sshPasswordLabel,
+			sshPasswordInput:   sshPasswordInput,
 		}
 		appWindow.stopSingBox()
 	})
 
 	enableSingboxPermanent := widget.NewButton("Enable Sing-box Permanent", func() {
 		appWindow := &AppWindow{
-			stokInput:     stokInput,
-			ipInput:       ipInput,
-			passwordInput: passwordInput,
-			logText:       logText,
+			stokInput:        stokInput,
+			ipInput:          ipInput,
+			passwordInput:    passwordInput,
+			logText:          logText,
+			sshPasswordLabel: sshPasswordLabel,
+			sshPasswordInput: sshPasswordInput,
 		}
 		appWindow.enableSingboxPermanent()
 	})
