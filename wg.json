@@ -1,0 +1,112 @@
+{
+  "log": {
+    "level": "info"
+  },
+  "dns": {
+    "servers": [
+      {
+        "address": "tls://8.8.8.8"
+      }
+    ]
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun",
+      "interface_name": "tun0",
+      "domain_strategy": "ipv4_only",
+      "inet4_address": "172.16.250.1/30",
+      "auto_route": false,
+      "strict_route": false,
+      "sniff": true
+    },
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "$ROUTERS.IP",
+      "listen_port": 1080,
+      "sniff": true,
+      "domain_strategy": "ipv4_only"
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "wireguard",
+      "tag": "wg-out",
+
+      "server": "127.0.0.1",
+      "server_port": 10001,
+      "system_interface": true,
+      "gso": true,
+      "interface_name": "wg0",
+      "local_address": [
+        "10.0.0.1/32"
+      ],
+      "private_key": "$private_key",
+      "peer_public_key": "$peer_public_key",
+      "pre_shared_key": "$pre_shared_key",
+      "reserved": [0, 0, 0],
+      "mtu": 1408
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "final": "direct",
+    "rules": [
+      {
+        "domain_suffix": [
+          ".ru"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "type": "logical",
+        "mode": "and",
+        "rules": [
+          {
+            "domain": [
+              "rutor.is",
+              "rutracker.org",
+              "chatgpt.com",
+              "claude.ai",
+              "ooklaserver.net",
+              "polycomm.net",
+              "imrworldwide.com",
+              "misaka.one",
+              "speedtest.net"
+            ],
+            "domain_suffix": [
+              ".youtube.com",
+              ".ytimg.com",
+              ".ggpht.com",
+              ".googlevideo.com",
+              ".youtubekids.com",
+              ".youtu.be",
+              ".youtube-nocookie.com",
+              ".wide-youtube.l.google.com",
+              ".ytimg.l.google.com",
+              ".youtubei.googleapis.com",
+              ".youtubeembeddedplayer.googleapis.com",
+              ".youtube-ui.l.google.com",
+              ".yt-video-upload.l.google.com",
+              ".chatgpt.com",
+              ".openai.com",
+              ".oaistatic.com",
+              ".anthropic.com",
+              ".ooklaserver.net",
+              ".polycomm.net",
+              ".imrworldwide.com",
+              ".misaka.one",
+              ".speedtest.net"
+            ]
+          }
+        ],
+        "outbound": "wg-out"
+      }
+    ]
+  }
+}
