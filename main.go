@@ -46,11 +46,24 @@ type Response struct {
 	Code int `json:"code"`
 }
 
+func SplitString(input string) string {
+	maxLen := 75
+	var result string
+	for i := 0; i < len(input); i += maxLen {
+		end := i + maxLen
+		if end > len(input) {
+			end = len(input)
+		}
+		result += input[i:end] + "\n"
+	}
+	return result
+}
+
 func (w *AppWindow) enableSSH() {
 	stok := w.stokInput.Text
 	ip := w.ipInput.Text
 	if stok == "" || ip == "" {
-		w.logContent += "Please fill in both stok and IP address.\n"
+		w.logContent += "Stok or IP address is empty, something wrong...\n"
 		w.logText.SetText(w.logContent)
 		return
 	}
@@ -74,9 +87,9 @@ func (w *AppWindow) enableSSH() {
 		fmt.Printf("Sending request to URL: %s\n", urlReq)
 		fmt.Printf("Request data: %s\n", data)
 
-		w.logContent += fmt.Sprintf("Sending request to URL: %s\n", urlReq)
+		w.logContent += fmt.Sprintf("Sending request to URL: %s", SplitString(urlReq))
 		w.logText.SetText(w.logContent)
-		w.logContent += fmt.Sprintf("Request data: %s\n", data)
+		w.logContent += fmt.Sprintf("Request data: %s", SplitString(data))
 		w.logText.SetText(w.logContent)
 
 		resp, err := http.Post(urlReq, "application/x-www-form-urlencoded", bytes.NewBufferString(data))
@@ -94,7 +107,7 @@ func (w *AppWindow) enableSSH() {
 		}
 		resp.Body.Close()
 
-		w.logContent += fmt.Sprintf("Response: %s\n", string(body))
+		w.logContent += fmt.Sprintf("Response: %s\n", SplitString(string(body)))
 		w.logText.SetText(w.logContent)
 
 		var response Response
@@ -112,8 +125,8 @@ func (w *AppWindow) enableSSH() {
 		}
 	}
 
-	// Enable SSH login button after all requests are successful
-	//w.sshLoginButton.Hidden = false
+	w.logContent += fmt.Sprintf("SSH success enabled!\n")
+	w.logText.SetText(w.logContent)
 }
 
 var salt = map[string]string{
@@ -136,10 +149,11 @@ func getSalt(sn string) string {
 func calcPasswd(sn string) string {
 	passwd := sn + getSalt(sn)
 	hash := md5.Sum([]byte(passwd))
-	return fmt.Sprintf("%x", hash)[:8]
+	password := fmt.Sprintf("%x", hash)[:8]
+	return password
 }
 
-func (w *AppWindow) loginSSH() (*ssh.Client, error) {
+func (w *AppWindow) loginSSH(firstTime ...int) (*ssh.Client, error) {
 	ip := w.ipInput.Text
 	routerPassword := w.passwordInput.Text
 
@@ -151,6 +165,10 @@ func (w *AppWindow) loginSSH() (*ssh.Client, error) {
 	_, serialNumber := w.query(ip, routerPassword)
 	password := calcPasswd(serialNumber)
 
+	if len(firstTime) != 0 {
+		w.sshPasswordInput.SetText(password)
+	}
+
 	clientConfig := &ssh.ClientConfig{
 		User:              "root", // Adjust the user as necessary
 		Auth:              []ssh.AuthMethod{ssh.Password(password)},
@@ -160,7 +178,7 @@ func (w *AppWindow) loginSSH() (*ssh.Client, error) {
 
 	client, err := ssh.Dial("tcp", fmt.Sprintf("%s:22", ip), clientConfig)
 	if err != nil {
-		w.logContent += fmt.Sprintf("Failed SSH connect: %v", err)
+		w.logContent += SplitString(fmt.Sprintf("Failed SSH connect: %v", err))
 		w.logText.SetText(w.logContent)
 		return nil, err
 	}
@@ -172,10 +190,6 @@ func (w *AppWindow) loginSSH() (*ssh.Client, error) {
 		return nil, err
 	}
 	defer session.Close()
-
-	//if w.sshPasswordInput.Text == "" {
-	//	w.sshPasswordInput.SetText(password)
-	//}
 
 	w.logContent += fmt.Sprintf("SSH login Success!\n")
 	w.logText.SetText(w.logContent)
@@ -508,7 +522,44 @@ func (w *AppWindow) query(ip, pass string) (stok string, serial string) {
 	return stok, statusResult.Hardware.SN
 }
 
+func (w *AppWindow) showProgressWithDots(startText string, updateText func(string), task func() error) {
+	w.logContent += startText
+	updateText(w.logContent)
+
+	done := make(chan struct{})
+
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		dots := "."
+
+		for {
+			select {
+			case <-ticker.C:
+				dots += "."
+				updateText(w.logContent + dots)
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	err := task()
+	close(done)
+
+	if err != nil {
+		w.logContent += fmt.Sprintf("\nError: %s.\n", err.Error())
+	} else {
+		w.logContent += " success!\n"
+	}
+	updateText(w.logContent)
+}
+
 func (w *AppWindow) installSingBox() {
+	updateText := func(text string) {
+		w.logText.SetText(text)
+	}
+
 	err := writeToFile("sing-box_temp", embeddedFile)
 	if err != nil {
 		w.logContent += fmt.Sprintf("Sing-box file write to local disk error %s.\n", err.Error())
@@ -532,21 +583,23 @@ func (w *AppWindow) installSingBox() {
 	w.logContent += fmt.Sprintf("Sing-box mkdir success!.\n")
 	w.logText.SetText(w.logContent)
 
-	err = copyFileToRemote(client, "./sing-box_temp", "/data/etc/sing-box/sing-box")
-	if err != nil {
-		w.logContent += fmt.Sprintf("Error copying binary file to router %s.\n", err.Error())
-		w.logText.SetText(w.logContent)
+	copyTask := func() error {
+		return copyFileToRemote(client, "./sing-box_temp", "/data/etc/sing-box/sing-box")
 	}
-	w.logContent += fmt.Sprintf("Sing-box binary file copied to remote disk success!.\n")
-	w.logText.SetText(w.logContent)
+	w.showProgressWithDots("Trying to copy binary file to router", updateText, copyTask)
 
-	err = copyFileToRemote(client, "singbox.init", "/etc/init.d/sing-box")
-	if err != nil {
-		w.logContent += fmt.Sprintf("Error copying init file to router %s.\n", err.Error())
-		w.logText.SetText(w.logContent)
+	copyInitTask := func() error {
+		return copyFileToRemote(client, "singbox.init", "/etc/init.d/sing-box")
 	}
-	w.logContent += fmt.Sprintf("Sing-box init file copied to router success!.\n")
-	w.logText.SetText(w.logContent)
+	w.showProgressWithDots("Sing-box init file copied to router", updateText, copyInitTask)
+
+	//err = copyFileToRemote(client, "singbox.init", "/etc/init.d/sing-box")
+	//if err != nil {
+	//	w.logContent += fmt.Sprintf("Error copying init file to router %s.\n", err.Error())
+	//	w.logText.SetText(w.logContent)
+	//}
+	//w.logContent += fmt.Sprintf("Sing-box init file copied to router success!.\n")
+	//w.logText.SetText(w.logContent)
 
 	//path := w.singboxConfigInput.Text
 	//if strings.HasPrefix(path, "file://") {
@@ -609,21 +662,21 @@ func writeToFile(filename string, data []byte) error {
 func main() {
 	myApp := app.New()
 	myWindow := myApp.NewWindow("RD15 Tool")
-	myWindow.Resize(fyne.NewSize(800, 800))
+	myWindow.Resize(fyne.NewSize(800, 1200))
 	myWindow.CenterOnScreen()
-
-	stokLabel := widget.NewLabel("stok:")
-	stokInput := widget.NewEntry()
-	stokInput.Disable()
 
 	ipLabel := widget.NewLabel("IP Address:")
 	ipInput := widget.NewEntry()
 
-	passwordLabel := widget.NewLabel("Password:")
+	passwordLabel := widget.NewLabel("Password (first time setup router password):")
 	passwordInput := widget.NewEntry()
 	passwordInput.SetText("")
 
-	sshPasswordLabel := widget.NewLabel("SSH Password:")
+	stokLabel := widget.NewLabel("Stok (get automatic):")
+	stokInput := widget.NewEntry()
+	stokInput.Disable()
+
+	sshPasswordLabel := widget.NewLabel("SSH Password (calculated automatic):")
 	sshPasswordInput := widget.NewEntry()
 	sshPasswordInput.Disable()
 
@@ -654,14 +707,22 @@ func main() {
 
 	sendButton := widget.NewButton("Enable SSH", func() {
 		appWindow := &AppWindow{
-			stokInput:      stokInput,
-			ipInput:        ipInput,
-			passwordInput:  passwordInput,
-			sshLoginButton: nil,
-			logText:        logText,
+			stokInput:        stokInput,
+			ipInput:          ipInput,
+			passwordInput:    passwordInput,
+			logText:          logText,
+			sshPasswordLabel: sshPasswordLabel,
+			sshPasswordInput: sshPasswordInput,
 		}
 		appWindow.enableSSH()
 	})
+	sendButton.Disable()
+
+	stokInput.OnChanged = func(text string) {
+		if len(text) > 10 {
+			sendButton.Enable()
+		}
+	}
 
 	sshLoginButton := widget.NewButton("Enable SSH permanent", func() {
 		appWindow := &AppWindow{
@@ -693,7 +754,7 @@ func main() {
 			sshPasswordLabel: sshPasswordLabel,
 			sshPasswordInput: sshPasswordInput,
 		}
-		appWindow.loginSSH()
+		appWindow.loginSSH(1)
 	})
 
 	installSingBoxConfig := widget.NewButton("Install sing-box config file", func() {
@@ -748,10 +809,11 @@ func main() {
 	})
 
 	content := container.NewVBox(
-		stokLabel, stokInput,
 		ipLabel, ipInput,
-		passwordLabel, passwordInput, sshPasswordLabel, sshPasswordInput,
-		sendButton, trySSHLoginButton, sshLoginButton, openFileButton, singboxConfigInput, installSingBox, installSingBoxConfig, startSingBox, stopSingBox, enableSingboxPermanent,
+		passwordLabel, passwordInput,
+		stokLabel, stokInput,
+		sshPasswordLabel, sshPasswordInput,
+		trySSHLoginButton, sendButton, sshLoginButton, openFileButton, singboxConfigInput, installSingBox, installSingBoxConfig, startSingBox, stopSingBox, enableSingboxPermanent,
 		logText,
 	)
 
