@@ -699,11 +699,24 @@ func main() {
 		fileDialog.SetFilter(storage.NewExtensionFileFilter([]string{".json"}))
 		fileDialog.Show()
 	})
+	openFileButton.Disable()
 
 	logText := widget.NewTextGrid()
 	logText.SetText("")
 
 	go detectRouterIP(ipInput)
+
+	trySSHLoginButton := widget.NewButton("Try SSH Login", func() {
+		appWindow := &AppWindow{
+			stokInput:        stokInput,
+			ipInput:          ipInput,
+			passwordInput:    passwordInput,
+			logText:          logText,
+			sshPasswordLabel: sshPasswordLabel,
+			sshPasswordInput: sshPasswordInput,
+		}
+		appWindow.loginSSH(1)
+	})
 
 	sendButton := widget.NewButton("Enable SSH", func() {
 		appWindow := &AppWindow{
@@ -718,12 +731,6 @@ func main() {
 	})
 	sendButton.Disable()
 
-	stokInput.OnChanged = func(text string) {
-		if len(text) > 10 {
-			sendButton.Enable()
-		}
-	}
-
 	sshLoginButton := widget.NewButton("Enable SSH permanent", func() {
 		appWindow := &AppWindow{
 			stokInput:     stokInput,
@@ -733,6 +740,7 @@ func main() {
 		}
 		appWindow.enableSSHPermanent()
 	})
+	sshLoginButton.Disable()
 
 	installSingBox := widget.NewButton("Install sing-box", func() {
 		appWindow := &AppWindow{
@@ -744,18 +752,7 @@ func main() {
 		}
 		appWindow.installSingBox()
 	})
-
-	trySSHLoginButton := widget.NewButton("Try SSH Login", func() {
-		appWindow := &AppWindow{
-			stokInput:        stokInput,
-			ipInput:          ipInput,
-			passwordInput:    passwordInput,
-			logText:          logText,
-			sshPasswordLabel: sshPasswordLabel,
-			sshPasswordInput: sshPasswordInput,
-		}
-		appWindow.loginSSH(1)
-	})
+	installSingBox.Disable()
 
 	installSingBoxConfig := widget.NewButton("Install sing-box config file", func() {
 		appWindow := &AppWindow{
@@ -769,6 +766,7 @@ func main() {
 		}
 		appWindow.installSingBoxConfig()
 	})
+	installSingBoxConfig.Disable()
 
 	startSingBox := widget.NewButton("Start SingBox", func() {
 		appWindow := &AppWindow{
@@ -782,6 +780,7 @@ func main() {
 		}
 		appWindow.startSingBox()
 	})
+	startSingBox.Disable()
 
 	stopSingBox := widget.NewButton("Stop SingBox", func() {
 		appWindow := &AppWindow{
@@ -795,6 +794,7 @@ func main() {
 		}
 		appWindow.stopSingBox()
 	})
+	stopSingBox.Disable()
 
 	enableSingboxPermanent := widget.NewButton("Enable Sing-box Permanent", func() {
 		appWindow := &AppWindow{
@@ -807,6 +807,25 @@ func main() {
 		}
 		appWindow.enableSingboxPermanent()
 	})
+	enableSingboxPermanent.Disable()
+
+	stokInput.OnChanged = func(text string) {
+		if len(text) > 10 {
+			sendButton.Enable()
+		}
+	}
+
+	sshPasswordInput.OnChanged = func(text string) {
+		if len(text) > 5 {
+			enableSingboxPermanent.Enable()
+			stopSingBox.Enable()
+			startSingBox.Enable()
+			installSingBoxConfig.Enable()
+			sshLoginButton.Enable()
+			installSingBox.Enable()
+			openFileButton.Enable()
+		}
+	}
 
 	content := container.NewVBox(
 		ipLabel, ipInput,
