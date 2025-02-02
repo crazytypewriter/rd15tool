@@ -18,6 +18,6 @@ This application is a GUI-based tool for managing SSH and Sing-box configuration
 - Press "Install sing-box" 
 - Enjoy!
 
-## Screen
+## Screencast
 
-![Screenshot.png](Screenshot.png)
+![output.gif](output.gif)
