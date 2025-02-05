@@ -21,3 +21,4 @@ This application is a GUI-based tool for managing SSH and Sing-box configuration
 ## Screencast
 
 ![output.gif](output.gif)
+

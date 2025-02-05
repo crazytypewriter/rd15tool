@@ -5,12 +5,16 @@ import (
 	"crypto/md5"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/storage"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"golang.org/x/crypto/ssh"
 	"io"
@@ -40,6 +44,8 @@ type AppWindow struct {
 	singboxConfigInput *widget.Entry
 	sshPasswordLabel   *widget.Label
 	sshPasswordInput   *widget.Entry
+	routerImage        *canvas.Image
+	routerModel        string
 }
 
 type Response struct {
@@ -47,14 +53,19 @@ type Response struct {
 }
 
 func SplitString(input string) string {
-	maxLen := 75
+	maxLen := 95
 	var result string
+
 	for i := 0; i < len(input); i += maxLen {
 		end := i + maxLen
 		if end > len(input) {
 			end = len(input)
 		}
-		result += input[i:end] + "\n"
+		substr := input[i:end]
+		if len(substr) > 0 && substr[len(substr)-1] != '\n' {
+			substr += "\n"
+		}
+		result += substr
 	}
 	return result
 }
@@ -86,11 +97,6 @@ func (w *AppWindow) enableSSH() {
 		// Log the request details
 		fmt.Printf("Sending request to URL: %s\n", urlReq)
 		fmt.Printf("Request data: %s\n", data)
-
-		w.logContent += fmt.Sprintf("Sending request to URL: %s", SplitString(urlReq))
-		w.logText.SetText(w.logContent)
-		w.logContent += fmt.Sprintf("Request data: %s", SplitString(data))
-		w.logText.SetText(w.logContent)
 
 		resp, err := http.Post(urlReq, "application/x-www-form-urlencoded", bytes.NewBufferString(data))
 		if err != nil {
@@ -138,7 +144,6 @@ func getSalt(sn string) string {
 	if !strings.Contains(sn, "/") {
 		return salt["r1d"]
 	}
-	// Разворачиваем соль для других устройств
 	parts := strings.Split(salt["others"], "-")
 	for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
 		parts[i], parts[j] = parts[j], parts[i]
@@ -156,22 +161,29 @@ func calcPasswd(sn string) string {
 func (w *AppWindow) loginSSH(firstTime ...int) (*ssh.Client, error) {
 	ip := w.ipInput.Text
 	routerPassword := w.passwordInput.Text
+	sshPass := w.sshPasswordInput.Text
+	fmt.Println("Sending requests to IP:", sshPass)
 
 	if ip == "" || routerPassword == "" {
 		w.logText.SetText("Please provide both IP address and password.")
-		return nil, nil
+		return nil, fmt.Errorf("Please provide both IP address and password")
 	}
 
-	_, serialNumber := w.query(ip, routerPassword)
-	password := calcPasswd(serialNumber)
+	if sshPass == "" {
+		_, serialNumber, err := w.querySerial(ip, routerPassword)
+		if err != nil {
+			return nil, err
+		}
+		sshPass = calcPasswd(serialNumber)
 
-	if len(firstTime) != 0 {
-		w.sshPasswordInput.SetText(password)
+		if len(firstTime) != 0 {
+			w.sshPasswordInput.SetText(sshPass)
+		}
 	}
 
 	clientConfig := &ssh.ClientConfig{
 		User:              "root", // Adjust the user as necessary
-		Auth:              []ssh.AuthMethod{ssh.Password(password)},
+		Auth:              []ssh.AuthMethod{ssh.Password(sshPass)},
 		HostKeyCallback:   ssh.InsecureIgnoreHostKey(),
 		HostKeyAlgorithms: []string{"ssh-rsa"},
 	}
@@ -191,8 +203,7 @@ func (w *AppWindow) loginSSH(firstTime ...int) (*ssh.Client, error) {
 	}
 	defer session.Close()
 
-	w.logContent += fmt.Sprintf("SSH login Success!\n")
-	w.logText.SetText(w.logContent)
+	w.LogWrite("SSH login Success!\n")
 
 	return client, nil
 }
@@ -279,6 +290,11 @@ func (w *AppWindow) enableSingboxPermanent() {
 	w.logText.SetText(w.logContent)
 
 	w.logContent += fmt.Sprintf("Sing-box and script copied successfully.\n")
+	w.logText.SetText(w.logContent)
+}
+
+func (w *AppWindow) LogWrite(message string) {
+	w.logContent += fmt.Sprintf(SplitString(message))
 	w.logText.SetText(w.logContent)
 }
 
@@ -431,7 +447,7 @@ func detectRouterIP(ipInput *widget.Entry) {
 	}
 }
 
-func (w *AppWindow) query(ip, pass string) (stok string, serial string) {
+func (w *AppWindow) querySerial(ip, pass string) (stok string, serial string, err error) {
 	loginURL := fmt.Sprintf("http://%s/cgi-bin/luci/api/xqsystem/login", ip)
 	loginData := url.Values{
 		"password": {pass},
@@ -441,26 +457,29 @@ func (w *AppWindow) query(ip, pass string) (stok string, serial string) {
 
 	req, err := http.NewRequest("POST", loginURL, bytes.NewBufferString(loginData.Encode()))
 	if err != nil {
-		fmt.Println("Error creating login request:", err)
-		return
+		w.LogWrite(fmt.Sprintf("Error creating login request: %s", err))
+		return "", "", err
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Cookie", "psp=admin|||2|||0")
 
 	client := &http.Client{}
+	client.Timeout = 3 * time.Second
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error making login request:", err)
-		return
+		w.LogWrite(fmt.Sprintf("Error making login request: %s", err))
+		return "", "", err
 	}
 	defer resp.Body.Close()
+	w.LogWrite("Try http login to router\n")
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading login response body:", err)
-		return
+		w.LogWrite(fmt.Sprintf("Error reading login response body: %s", err))
+		return "", "", err
 	}
+	w.LogWrite("Read http answer\n")
 
 	var loginResult struct {
 		Token string `json:"token"`
@@ -468,58 +487,67 @@ func (w *AppWindow) query(ip, pass string) (stok string, serial string) {
 	}
 	err = json.Unmarshal(body, &loginResult)
 	if err != nil {
-		fmt.Println("Error parsing login JSON:", err)
-		return
+		w.LogWrite(fmt.Sprintf("Error parsing login response body: %s", err))
+		return "", "", err
 	}
+	w.LogWrite("Unmarshal answer\n")
 
 	if loginResult.Code != 0 {
-		fmt.Println("Login failed with code:", loginResult.Code)
-		return
+		w.LogWrite(fmt.Sprintf("Login failed with code: %d", loginResult.Code))
+		return "", "", fmt.Errorf("Login failed with code: %d", loginResult.Code)
 	}
 
 	w.stokInput.SetText(loginResult.Token)
+	w.LogWrite("Stok received\n")
 
 	stok = loginResult.Token
 	statusURL := fmt.Sprintf("http://%s/cgi-bin/luci/;stok=%s/api/misystem/newstatus", ip, stok)
 
 	req, err = http.NewRequest("GET", statusURL, nil)
 	if err != nil {
-		fmt.Println("Error creating status request:", err)
-		return
+		w.LogWrite(fmt.Sprintf("Error creating status request: %s", err))
+		return "", "", err
 	}
 
 	resp, err = client.Do(req)
 	if err != nil {
-		fmt.Println("Error making status request:", err)
-		return
+		w.LogWrite(fmt.Sprintf("Error making status request: %s", err))
+		return "", "", err
 	}
 	defer resp.Body.Close()
+	w.LogWrite("Make http query to router\n")
 
 	body, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error reading status response body:", err)
-		return
+		return "", "", err
 	}
+	w.LogWrite("Read answer\n")
 
 	var statusResult struct {
 		Code     int `json:"code"`
 		Hardware struct {
-			SN string `json:"sn"`
+			SN       string `json:"sn"`
+			Platform string `json:"platform"`
 		} `json:"hardware"`
 	}
 	err = json.Unmarshal(body, &statusResult)
 	if err != nil {
 		fmt.Println("Error parsing status JSON:", err)
-		return
+		return "", "", err
 	}
+	w.routerModel = statusResult.Hardware.Platform
+	//fmt.Println(string(body[:]))
+	w.LogWrite("Unmarshal answer\n")
 
 	if statusResult.Code == 0 {
-		fmt.Println("Request successful!")
+		w.LogWrite("Request successful!")
 		fmt.Println("SN value:", statusResult.Hardware.SN)
 	} else {
-		fmt.Println("Request failed with code:", statusResult.Code)
+		w.LogWrite(fmt.Sprintf("Request failed with code: %d", statusResult.Code))
+		return "", "", err
 	}
-	return stok, statusResult.Hardware.SN
+	return stok, statusResult.Hardware.SN, nil
 }
 
 func (w *AppWindow) showProgressWithDots(startText string, updateText func(string), task func() error) {
@@ -669,16 +697,38 @@ func main() {
 	ipInput := widget.NewEntry()
 
 	passwordLabel := widget.NewLabel("Password (first time setup router password):")
-	passwordInput := widget.NewEntry()
-	passwordInput.SetText("")
+	passwordInput := widget.NewPasswordEntry()
+
+	routerImage := canvas.NewImageFromFile("be3600.png") // Replace with your image path
+	routerImage.SetMinSize(fyne.NewSize(75, 75))         // Adjust image size
+	routerImage.FillMode = canvas.ImageFillContain       // Keep aspect ratio
+	routerImage.Hide()
+
+	passwordContainer := container.NewHBox(
+		container.NewVBox(passwordLabel, passwordInput),
+		layout.NewSpacer(),
+		routerImage,
+	)
 
 	stokLabel := widget.NewLabel("Stok (get automatic):")
 	stokInput := widget.NewEntry()
 	stokInput.Disable()
 
+	stokInputClipBoardButton := widget.NewButtonWithIcon("copy", theme.ContentCopyIcon(), func() {
+		myWindow.Clipboard().SetContent(stokInput.Text)
+	})
+
+	stokInputBorder := container.NewBorder(nil, nil, nil, stokInputClipBoardButton, stokInput)
+
 	sshPasswordLabel := widget.NewLabel("SSH Password (calculated automatic):")
 	sshPasswordInput := widget.NewEntry()
 	sshPasswordInput.Disable()
+
+	sshPasswordInputClipBoardButton := widget.NewButtonWithIcon("copy", theme.ContentCopyIcon(), func() {
+		myWindow.Clipboard().SetContent(sshPasswordInput.Text)
+	})
+
+	sshPasswordBorder := container.NewBorder(nil, nil, nil, sshPasswordInputClipBoardButton, sshPasswordInput)
 
 	singboxConfigInput := widget.NewEntry()
 
@@ -715,7 +765,20 @@ func main() {
 			sshPasswordLabel: sshPasswordLabel,
 			sshPasswordInput: sshPasswordInput,
 		}
-		appWindow.loginSSH(1)
+		_, err := appWindow.loginSSH(1)
+		if err != nil {
+			return
+		}
+
+		if appWindow.routerModel != "" {
+			var pic string
+			if pic, err = getPicForRouter(appWindow.routerModel); err == nil {
+				routerImage.File = pic
+				routerImage.Refresh()
+				routerImage.Show()
+			}
+
+		}
 	})
 
 	sendButton := widget.NewButton("Enable SSH", func() {
@@ -733,10 +796,11 @@ func main() {
 
 	sshLoginButton := widget.NewButton("Enable SSH permanent", func() {
 		appWindow := &AppWindow{
-			stokInput:     stokInput,
-			ipInput:       ipInput,
-			passwordInput: passwordInput,
-			logText:       logText,
+			stokInput:        stokInput,
+			ipInput:          ipInput,
+			passwordInput:    passwordInput,
+			logText:          logText,
+			sshPasswordInput: sshPasswordInput,
 		}
 		appWindow.enableSSHPermanent()
 	})
@@ -749,6 +813,7 @@ func main() {
 			passwordInput:      passwordInput,
 			logText:            logText,
 			singboxConfigInput: singboxConfigInput,
+			sshPasswordInput:   sshPasswordInput,
 		}
 		appWindow.installSingBox()
 	})
@@ -761,7 +826,6 @@ func main() {
 			passwordInput:      passwordInput,
 			logText:            logText,
 			singboxConfigInput: singboxConfigInput,
-			sshPasswordLabel:   sshPasswordLabel,
 			sshPasswordInput:   sshPasswordInput,
 		}
 		appWindow.installSingBoxConfig()
@@ -775,7 +839,6 @@ func main() {
 			passwordInput:      passwordInput,
 			logText:            logText,
 			singboxConfigInput: singboxConfigInput,
-			sshPasswordLabel:   sshPasswordLabel,
 			sshPasswordInput:   sshPasswordInput,
 		}
 		appWindow.startSingBox()
@@ -789,7 +852,6 @@ func main() {
 			passwordInput:      passwordInput,
 			logText:            logText,
 			singboxConfigInput: singboxConfigInput,
-			sshPasswordLabel:   sshPasswordLabel,
 			sshPasswordInput:   sshPasswordInput,
 		}
 		appWindow.stopSingBox()
@@ -802,7 +864,6 @@ func main() {
 			ipInput:          ipInput,
 			passwordInput:    passwordInput,
 			logText:          logText,
-			sshPasswordLabel: sshPasswordLabel,
 			sshPasswordInput: sshPasswordInput,
 		}
 		appWindow.enableSingboxPermanent()
@@ -829,13 +890,23 @@ func main() {
 
 	content := container.NewVBox(
 		ipLabel, ipInput,
-		passwordLabel, passwordInput,
-		stokLabel, stokInput,
-		sshPasswordLabel, sshPasswordInput,
+		passwordContainer,
+		stokLabel, stokInputBorder,
+		sshPasswordLabel, sshPasswordBorder,
 		trySSHLoginButton, sendButton, sshLoginButton, openFileButton, singboxConfigInput, installSingBox, installSingBoxConfig, startSingBox, stopSingBox, enableSingboxPermanent,
 		logText,
 	)
 
 	myWindow.SetContent(content)
 	myWindow.ShowAndRun()
+}
+
+func getPicForRouter(model string) (string, error) {
+	switch model {
+	case "RD15":
+		return "be3600.png", nil
+	case "RD16":
+		return "be5000.png", nil
+	}
+	return "", errors.New("invalid model")
 }
