@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -46,6 +47,8 @@ type AppWindow struct {
 	sshPasswordInput   *widget.Entry
 	routerImage        *canvas.Image
 	routerModel        string
+	sshEnabled         *widget.Entry
+	vlanIdEntry        *widget.Entry
 }
 
 type Response struct {
@@ -70,13 +73,13 @@ func SplitString(input string) string {
 	return result
 }
 
-func (w *AppWindow) enableSSH() {
+func (w *AppWindow) enableSSH() bool {
 	stok := w.stokInput.Text
 	ip := w.ipInput.Text
 	if stok == "" || ip == "" {
 		w.logContent += "Stok or IP address is empty, something wrong...\n"
 		w.logText.SetText(w.logContent)
-		return
+		return false
 	}
 
 	commands := []string{
@@ -91,7 +94,7 @@ func (w *AppWindow) enableSSH() {
 	fmt.Println("Using STOK:", stok)
 
 	for _, cmd := range commands {
-		data := fmt.Sprintf("uid=1234&key=1234'%s'", cmd)
+		data := fmt.Sprintf("uid=1234&key=1234%s", cmd)
 		urlReq := fmt.Sprintf("http://%s/cgi-bin/luci/;stok=%s/api/xqsystem/start_binding", ip, stok)
 
 		// Log the request details
@@ -102,37 +105,38 @@ func (w *AppWindow) enableSSH() {
 		if err != nil {
 			w.logContent += fmt.Sprintf("Error: %v", err)
 			w.logText.SetText(w.logContent)
-			return
+			return false
 		}
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			w.logContent += fmt.Sprintf("Error reading response body: %v\n", err)
 			w.logText.SetText(w.logContent)
-			return
+			return false
 		}
 		resp.Body.Close()
-
-		w.logContent += fmt.Sprintf("Response: %s\n", SplitString(string(body)))
-		w.logText.SetText(w.logContent)
 
 		var response Response
 		err = json.Unmarshal(body, &response)
 		if err != nil {
 			w.logContent += fmt.Sprintf("Error parsing response body: %v\n", err)
 			w.logText.SetText(w.logContent)
-			return
+			return false
 		}
+
+		w.logContent += fmt.Sprintf("Response: %s\n", strconv.Itoa(response.Code))
+		w.logText.SetText(w.logContent)
 
 		if response.Code != 0 {
 			w.logContent += fmt.Sprintf("Request failed: code is not 0. Response: %v\n", response)
 			w.logText.SetText(w.logContent)
-			return
+			return false
 		}
 	}
 
 	w.logContent += fmt.Sprintf("SSH success enabled!\n")
 	w.logText.SetText(w.logContent)
+	return true
 }
 
 var salt = map[string]string{
@@ -158,11 +162,33 @@ func calcPasswd(sn string) string {
 	return password
 }
 
+func (w *AppWindow) getSshPassAndStok() error {
+	ip := w.ipInput.Text
+	routerPassword := w.passwordInput.Text
+	sshPass := w.sshPasswordInput.Text
+
+	if ip == "" || routerPassword == "" {
+		w.logText.SetText("Please provide both IP address and password.")
+		return fmt.Errorf("Please provide both IP address and password")
+	}
+
+	if sshPass == "" {
+		_, serialNumber, err := w.querySerial(ip, routerPassword)
+		if err != nil {
+			return err
+		}
+		sshPass = calcPasswd(serialNumber)
+
+		w.sshPasswordInput.SetText(sshPass)
+	}
+
+	return nil
+}
+
 func (w *AppWindow) loginSSH(firstTime ...int) (*ssh.Client, error) {
 	ip := w.ipInput.Text
 	routerPassword := w.passwordInput.Text
 	sshPass := w.sshPasswordInput.Text
-	fmt.Println("Sending requests to IP:", sshPass)
 
 	if ip == "" || routerPassword == "" {
 		w.logText.SetText("Please provide both IP address and password.")
@@ -179,6 +205,7 @@ func (w *AppWindow) loginSSH(firstTime ...int) (*ssh.Client, error) {
 		if len(firstTime) != 0 {
 			w.sshPasswordInput.SetText(sshPass)
 		}
+		w.enableSSH()
 	}
 
 	clientConfig := &ssh.ClientConfig{
@@ -214,7 +241,7 @@ func (w *AppWindow) enableSSHPermanent() {
 		w.logText.SetText(w.logContent)
 	}
 
-	err = runSSHCommand(client, "mkdir", "-p", "/etc/crontabs/patches", ">/dev/null 2>&1")
+	_, err = runSSHCommand(client, "mkdir", "-p", "/etc/crontabs/patches", ">/dev/null 2>&1")
 	if err != nil {
 		w.logContent += fmt.Sprintf("Failed to create crontabs path directory: %v", err)
 		w.logText.SetText(w.logContent)
@@ -230,7 +257,7 @@ func (w *AppWindow) enableSSHPermanent() {
 	w.logText.SetText(fmt.Sprintf("SSH patch installed to disk!\n"))
 
 	cmdR := "crontab -l > /tmp/current_crontab && if ! grep -q 'ssh_patch.sh' /tmp/current_crontab; then echo '*/1 * * * * /etc/crontabs/patches/ssh_patch.sh >/dev/null 2>&1' >> /tmp/current_crontab; crontab /tmp/current_crontab; fi"
-	err = runSSHCommand(client, cmdR)
+	_, err = runSSHCommand(client, cmdR)
 	if err != nil {
 		w.logContent += fmt.Sprintf("Failed to add SSH check to cron: %v\n", err)
 		w.logText.SetText(w.logContent)
@@ -238,7 +265,7 @@ func (w *AppWindow) enableSSHPermanent() {
 	w.logContent += fmt.Sprintf("SSH installed!\n")
 	w.logText.SetText(w.logContent)
 
-	err = runSSHCommand(client, "/etc/init.d/cron restart")
+	_, err = runSSHCommand(client, "/etc/init.d/cron restart")
 	if err != nil {
 		w.logContent += fmt.Sprintf("Cron restarted error: %s\n", err.Error())
 		w.logText.SetText(w.logContent)
@@ -257,7 +284,7 @@ func (w *AppWindow) enableSingboxPermanent() {
 		w.logText.SetText(w.logContent)
 	}
 
-	err = runSSHCommand(client, "mkdir", "-p", "/etc/crontabs/patches", ">/dev/null 2>&1")
+	_, err = runSSHCommand(client, "mkdir", "-p", "/etc/crontabs/patches", ">/dev/null 2>&1")
 	if err != nil {
 		w.logContent += fmt.Sprintf("Failed to create crontabs path directory: %v", err)
 		w.logText.SetText(w.logContent)
@@ -273,7 +300,7 @@ func (w *AppWindow) enableSingboxPermanent() {
 	w.logText.SetText(fmt.Sprintf("Sing-box patch installed to disk!\n"))
 
 	cmdR := "crontab -l > /tmp/current_crontab && if ! grep -q 'singbox_patch.sh' /tmp/current_crontab; then echo '*/1 * * * * /etc/crontabs/patches/singbox_patch.sh >/dev/null 2>&1' >> /tmp/current_crontab; crontab /tmp/current_crontab; fi"
-	err = runSSHCommand(client, cmdR)
+	_, err = runSSHCommand(client, cmdR)
 	if err != nil {
 		w.logContent += fmt.Sprintf("Failed to add SSH check to cron: %v\n", err)
 		w.logText.SetText(w.logContent)
@@ -281,7 +308,7 @@ func (w *AppWindow) enableSingboxPermanent() {
 	w.logContent += fmt.Sprintf("Sing-box installed!\n")
 	w.logText.SetText(w.logContent)
 
-	err = runSSHCommand(client, "/etc/init.d/cron restart")
+	_, err = runSSHCommand(client, "/etc/init.d/cron restart")
 	if err != nil {
 		w.logContent += fmt.Sprintf("Cron restarted error: %s\n", err.Error())
 		w.logText.SetText(w.logContent)
@@ -298,15 +325,21 @@ func (w *AppWindow) LogWrite(message string) {
 	w.logText.SetText(w.logContent)
 }
 
-func runSSHCommand(client *ssh.Client, args ...string) error {
+func runSSHCommand(client *ssh.Client, args ...string) (string, error) {
 	session, err := client.NewSession()
-	cmd := exec.Command(args[0], args[1:]...)
-	err = session.Run(cmd.String())
 	if err != nil {
-		return err
+		return "", fmt.Errorf("failed to create session: %w", err)
 	}
 	defer session.Close()
-	return nil
+
+	var stdoutBuf bytes.Buffer
+	session.Stdout = &stdoutBuf
+	session.Stderr = os.Stderr
+	cmd := exec.Command(args[0], args[1:]...)
+	if err := session.Run(cmd.String()); err != nil {
+		return "", fmt.Errorf("failed to execute command: %w", err)
+	}
+	return stdoutBuf.String(), nil
 }
 
 func copyFileToRemote(client *ssh.Client, localPath, remotePath string) error {
@@ -585,7 +618,7 @@ func (w *AppWindow) showProgressWithDots(startText string, updateText func(strin
 
 func (w *AppWindow) installSingBox() {
 	updateText := func(text string) {
-		w.logText.SetText(text)
+		w.logText.SetText(SplitString(text))
 	}
 
 	err := writeToFile("sing-box_temp", embeddedFile)
@@ -603,7 +636,7 @@ func (w *AppWindow) installSingBox() {
 		w.logText.SetText(w.logContent)
 	}
 
-	err = runSSHCommand(client, "mkdir", "-p", "/data/etc/sing-box")
+	_, err = runSSHCommand(client, "mkdir", "-p", "/data/etc/sing-box")
 	if err != nil {
 		w.logContent += fmt.Sprintf("Error mkdir for sing-box %s.\n", err.Error())
 		w.logText.SetText(w.logContent)
@@ -620,27 +653,6 @@ func (w *AppWindow) installSingBox() {
 		return copyFileToRemote(client, "singbox.init", "/etc/init.d/sing-box")
 	}
 	w.showProgressWithDots("Sing-box init file copied to router", updateText, copyInitTask)
-
-	//err = copyFileToRemote(client, "singbox.init", "/etc/init.d/sing-box")
-	//if err != nil {
-	//	w.logContent += fmt.Sprintf("Error copying init file to router %s.\n", err.Error())
-	//	w.logText.SetText(w.logContent)
-	//}
-	//w.logContent += fmt.Sprintf("Sing-box init file copied to router success!.\n")
-	//w.logText.SetText(w.logContent)
-
-	//path := w.singboxConfigInput.Text
-	//if strings.HasPrefix(path, "file://") {
-	//	path = strings.TrimPrefix(path, "file://")
-	//}
-
-	//err = copyFileToRemote(client, path, "/data/etc/sing-box/config.json")
-	//if err != nil {
-	//	w.logContent += fmt.Sprintf("Error copying config file to router %s.\n", err.Error())
-	//	w.logText.SetText(w.logContent)
-	//}
-	//w.logContent += fmt.Sprintf("Sing-box config file copied to router success!.\n")
-	//w.logText.SetText(w.logContent)
 }
 
 func (w *AppWindow) installSingBoxConfig() {
@@ -662,7 +674,7 @@ func (w *AppWindow) installSingBoxConfig() {
 func (w *AppWindow) startSingBox() {
 	client, err := w.loginSSH()
 
-	err = runSSHCommand(client, "/etc/init.d/sing-box", "start")
+	_, err = runSSHCommand(client, "/etc/init.d/sing-box", "start")
 	if err != nil {
 		w.logContent += fmt.Sprintf("Error starting sing-box %s.\n", err.Error())
 		w.logText.SetText(w.logContent)
@@ -674,13 +686,94 @@ func (w *AppWindow) startSingBox() {
 func (w *AppWindow) stopSingBox() {
 	client, err := w.loginSSH()
 
-	err = runSSHCommand(client, "/etc/init.d/sing-box", "stop")
+	_, err = runSSHCommand(client, "/etc/init.d/sing-box", "stop")
 	if err != nil {
 		w.logContent += fmt.Sprintf("Error stopping sing-box %s.\n", err.Error())
 		w.logText.SetText(w.logContent)
 	}
 	w.logContent += fmt.Sprintf("Sing-box stop successful!.\n")
 	w.logText.SetText(w.logContent)
+}
+
+func (w *AppWindow) replaceRemoteFileRegex(filePath string, replacements map[*regexp.Regexp]string) error {
+	client, err := w.loginSSH()
+	if err != nil {
+		return err
+	}
+
+	catCommand := fmt.Sprintf("cat %s", filePath)
+	fileContent, err := runSSHCommand(client, catCommand)
+	if err != nil {
+		w.LogWrite(fmt.Sprintf("Error running command: %s.\n", err.Error()))
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	modified := false
+	lines := strings.Split(fileContent, "\n")
+	for i, line := range lines {
+		for re, replacement := range replacements {
+			if re.MatchString(line) {
+				newLine := re.ReplaceAllString(line, replacement)
+				if line != newLine {
+					lines[i] = newLine
+					modified = true
+				}
+			}
+		}
+	}
+
+	if !modified {
+		fmt.Println("No changes needed for", filePath)
+		w.LogWrite(fmt.Sprintf("No changes needed for %s", filePath))
+		return nil
+	}
+
+	updatedContent := strings.Join(lines, "\n")
+
+	echoCommand := fmt.Sprintf("echo -e %q > %s", updatedContent, filePath)
+	if _, err = runSSHCommand(client, echoCommand); err != nil {
+		w.LogWrite(fmt.Sprintf("failed to update file: %w", err))
+		return fmt.Errorf("failed to update file: %w", err)
+	}
+
+	w.LogWrite("File updated successfully on remote host!\n")
+	return nil
+}
+
+func (w *AppWindow) enableVLAN() {
+	id := w.vlanIdEntry.Text
+	newReplacement := "." + id
+	if id == "0" {
+		newReplacement = ""
+	}
+
+	fileModifications := map[string]map[string]string{
+		"/etc/config/network": {
+			`config interface 'eth1(\.\d+)?'`:      "config interface 'eth1" + newReplacement + "'",
+			`option ifname '([^']*?)eth1(\.\d+)?'`: "option ifname '${1}eth1" + newReplacement + "'",
+		},
+		"/etc/config/port_map": {
+			`option ifname 'eth1(\.\d+)?'`: "option ifname 'eth1" + newReplacement + "'",
+		},
+	}
+
+	for filePath, patterns := range fileModifications {
+		replacements := make(map[*regexp.Regexp]string)
+		for pattern, replacement := range patterns {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				fmt.Println("Error compiling regex:", err)
+				w.LogWrite(fmt.Sprintf("Error compiling regex: %s.\n", err.Error()))
+				return
+			}
+			replacements[re] = replacement
+		}
+
+		if err := w.replaceRemoteFileRegex(filePath, replacements); err != nil {
+			fmt.Println("Error updating", filePath, "on remote host:", err)
+			w.LogWrite(fmt.Sprintf("Error updating: %s", err.Error()))
+		}
+	}
 }
 
 func writeToFile(filename string, data []byte) error {
@@ -692,6 +785,7 @@ func main() {
 	myWindow := myApp.NewWindow("RD15 Tool")
 	myWindow.Resize(fyne.NewSize(800, 1200))
 	myWindow.CenterOnScreen()
+	sshEnabled := widget.NewEntry()
 
 	ipLabel := widget.NewLabel("IP Address:")
 	ipInput := widget.NewEntry()
@@ -699,9 +793,9 @@ func main() {
 	passwordLabel := widget.NewLabel("Password (first time setup router password):")
 	passwordInput := widget.NewPasswordEntry()
 
-	routerImage := canvas.NewImageFromFile("be3600.png") // Replace with your image path
-	routerImage.SetMinSize(fyne.NewSize(75, 75))         // Adjust image size
-	routerImage.FillMode = canvas.ImageFillContain       // Keep aspect ratio
+	routerImage := canvas.NewImageFromFile("be3600.png")
+	routerImage.SetMinSize(fyne.NewSize(75, 75))
+	routerImage.FillMode = canvas.ImageFillContain
 	routerImage.Hide()
 
 	passwordContainer := container.NewHBox(
@@ -756,7 +850,7 @@ func main() {
 
 	go detectRouterIP(ipInput)
 
-	trySSHLoginButton := widget.NewButton("Try SSH Login", func() {
+	trySSHLoginButton := widget.NewButton("Get SSH password", func() {
 		appWindow := &AppWindow{
 			stokInput:        stokInput,
 			ipInput:          ipInput,
@@ -765,7 +859,7 @@ func main() {
 			sshPasswordLabel: sshPasswordLabel,
 			sshPasswordInput: sshPasswordInput,
 		}
-		_, err := appWindow.loginSSH(1)
+		err := appWindow.getSshPassAndStok()
 		if err != nil {
 			return
 		}
@@ -781,7 +875,7 @@ func main() {
 		}
 	})
 
-	sendButton := widget.NewButton("Enable SSH", func() {
+	sshEnableButton := widget.NewButton("Enable SSH", func() {
 		appWindow := &AppWindow{
 			stokInput:        stokInput,
 			ipInput:          ipInput,
@@ -790,9 +884,11 @@ func main() {
 			sshPasswordLabel: sshPasswordLabel,
 			sshPasswordInput: sshPasswordInput,
 		}
-		appWindow.enableSSH()
+		if appWindow.enableSSH() {
+			sshEnabled.SetText("SSH enabled")
+		}
 	})
-	sendButton.Disable()
+	sshEnableButton.Disable()
 
 	sshLoginButton := widget.NewButton("Enable SSH permanent", func() {
 		appWindow := &AppWindow{
@@ -870,14 +966,29 @@ func main() {
 	})
 	enableSingboxPermanent.Disable()
 
-	stokInput.OnChanged = func(text string) {
-		if len(text) > 10 {
-			sendButton.Enable()
+	vlanIdEntry := widget.NewEntry()
+	enableVLAN := widget.NewButton("Set VLAN on port 4", func() {
+		appWindow := &AppWindow{
+			stokInput:        stokInput,
+			ipInput:          ipInput,
+			passwordInput:    passwordInput,
+			logText:          logText,
+			sshPasswordInput: sshPasswordInput,
+			vlanIdEntry:      vlanIdEntry,
 		}
-	}
+		appWindow.enableVLAN()
+	})
+	enableVLAN.Disable()
+	vlanBorder := container.NewBorder(nil, nil, nil, enableVLAN, vlanIdEntry)
 
 	sshPasswordInput.OnChanged = func(text string) {
 		if len(text) > 5 {
+			sshEnableButton.Enable()
+		}
+	}
+
+	sshEnabled.OnChanged = func(text string) {
+		if len(text) > 0 {
 			enableSingboxPermanent.Enable()
 			stopSingBox.Enable()
 			startSingBox.Enable()
@@ -885,6 +996,7 @@ func main() {
 			sshLoginButton.Enable()
 			installSingBox.Enable()
 			openFileButton.Enable()
+			enableVLAN.Enable()
 		}
 	}
 
@@ -893,7 +1005,8 @@ func main() {
 		passwordContainer,
 		stokLabel, stokInputBorder,
 		sshPasswordLabel, sshPasswordBorder,
-		trySSHLoginButton, sendButton, sshLoginButton, openFileButton, singboxConfigInput, installSingBox, installSingBoxConfig, startSingBox, stopSingBox, enableSingboxPermanent,
+		trySSHLoginButton, sshEnableButton, sshLoginButton, openFileButton, singboxConfigInput, installSingBox, installSingBoxConfig, startSingBox, stopSingBox, enableSingboxPermanent,
+		vlanBorder,
 		logText,
 	)
 
