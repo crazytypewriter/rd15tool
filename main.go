@@ -776,6 +776,32 @@ func (w *AppWindow) enableVLAN() {
 	}
 }
 
+func (w *AppWindow) enableUART() {
+	fileModifications := map[string]map[string]string{
+		"/etc/inittab": {
+			`ttyMSM0::askfirst:/bin/ash\s+--login`: "ttyMSM0::askfirst:/bin/ash", // Updated regex pattern
+		},
+	}
+
+	for filePath, patterns := range fileModifications {
+		replacements := make(map[*regexp.Regexp]string)
+		for pattern, replacement := range patterns {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				fmt.Println("Error compiling regex:", err)
+				w.LogWrite(fmt.Sprintf("Error compiling regex: %s.\n", err.Error()))
+				return
+			}
+			replacements[re] = replacement
+		}
+
+		if err := w.replaceRemoteFileRegex(filePath, replacements); err != nil {
+			fmt.Println("Error updating", filePath, "on remote host:", err)
+			w.LogWrite(fmt.Sprintf("Error updating: %s", err.Error()))
+		}
+	}
+}
+
 func writeToFile(filename string, data []byte) error {
 	return os.WriteFile(filename, data, 0644)
 }
@@ -979,13 +1005,26 @@ func main() {
 		appWindow.enableVLAN()
 	})
 	enableVLAN.Disable()
-	vlanBorder := container.NewBorder(nil, nil, nil, enableVLAN, vlanIdEntry)
+	//vlanBorder := container.NewBorder(nil, nil, nil, enableVLAN, vlanIdEntry)
 
 	sshPasswordInput.OnChanged = func(text string) {
 		if len(text) > 5 {
 			sshEnableButton.Enable()
 		}
 	}
+
+	enableUART := widget.NewButton("Set UART on", func() {
+		appWindow := &AppWindow{
+			stokInput:        stokInput,
+			ipInput:          ipInput,
+			passwordInput:    passwordInput,
+			logText:          logText,
+			sshPasswordInput: sshPasswordInput,
+			vlanIdEntry:      vlanIdEntry,
+		}
+		appWindow.enableUART()
+	})
+	enableUART.Disable()
 
 	sshEnabled.OnChanged = func(text string) {
 		if len(text) > 0 {
@@ -996,7 +1035,7 @@ func main() {
 			sshLoginButton.Enable()
 			installSingBox.Enable()
 			openFileButton.Enable()
-			enableVLAN.Enable()
+			enableUART.Enable()
 		}
 	}
 
@@ -1006,7 +1045,8 @@ func main() {
 		stokLabel, stokInputBorder,
 		sshPasswordLabel, sshPasswordBorder,
 		trySSHLoginButton, sshEnableButton, sshLoginButton, openFileButton, singboxConfigInput, installSingBox, installSingBoxConfig, startSingBox, stopSingBox, enableSingboxPermanent,
-		vlanBorder,
+		//vlanBorder,
+		enableUART,
 		logText,
 	)
 
