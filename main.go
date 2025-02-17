@@ -650,7 +650,7 @@ func (w *AppWindow) installSingBox() {
 	w.showProgressWithDots("Trying to copy binary file to router", updateText, copyTask)
 
 	copyInitTask := func() error {
-		return copyFileToRemote(client, "singbox.init", "/etc/init.d/sing-box")
+		return copyFileToRemote(client, "./singbox.init", "/etc/init.d/sing-box")
 	}
 	w.showProgressWithDots("Sing-box init file copied to router", updateText, copyInitTask)
 }
@@ -816,8 +816,9 @@ func main() {
 	ipLabel := widget.NewLabel("IP Address:")
 	ipInput := widget.NewEntry()
 
-	passwordLabel := widget.NewLabel("Password (first time setup router password):")
+	passwordLabel := widget.NewLabel("Password:                                                       ")
 	passwordInput := widget.NewPasswordEntry()
+	passwordInput.SetPlaceHolder("First time setup router password")
 
 	routerImage := canvas.NewImageFromFile("be3600.png")
 	routerImage.SetMinSize(fyne.NewSize(75, 75))
@@ -1057,9 +1058,9 @@ func main() {
 func getPicForRouter(model string) (string, error) {
 	switch model {
 	case "RD15":
-		return "be3600.png", nil
+		return "./be3600.png", nil
 	case "RD16":
-		return "be5000.png", nil
+		return "./be5000.png", nil
 	}
 	return "", errors.New("invalid model")
 }
