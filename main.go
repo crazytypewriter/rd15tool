@@ -176,27 +176,27 @@ func calcPasswd(sn string) string {
 	return password
 }
 
-func (w *AppWindow) getSshPassAndStok() error {
+func (w *AppWindow) getSshPassAndStok() {
 	ip := w.ipInput.Text
 	routerPassword := w.passwordInput.Text
 	sshPass := w.sshPasswordInput.Text
 
 	if ip == "" || routerPassword == "" {
 		w.logText.SetText("Please provide both IP address and password.")
-		return fmt.Errorf("Please provide both IP address and password")
+		w.logText.SetText(w.logContent)
 	}
 
 	if sshPass == "" {
 		_, serialNumber, err := w.querySerial(ip, routerPassword)
 		if err != nil {
-			return err
+			w.logText.SetText("Error: " + err.Error())
+			w.logText.SetText(w.logContent)
 		}
 		sshPass = calcPasswd(serialNumber)
 
 		w.sshPasswordInput.SetText(sshPass)
 	}
 
-	return nil
 }
 
 func (w *AppWindow) loginSSH(firstTime ...int) (*ssh.Client, error) {
@@ -1046,10 +1046,7 @@ func main() {
 			sshPasswordLabel: sshPasswordLabel,
 			sshPasswordInput: sshPasswordInput,
 		}
-		err := appWindow.getSshPassAndStok()
-		if err != nil {
-			return
-		}
+		appWindow.getSshPassAndStok()
 
 		if appWindow.routerModel != "" {
 			//var pic []byte
