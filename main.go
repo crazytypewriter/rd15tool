@@ -33,7 +33,10 @@ import (
 )
 
 //go:embed sing-box
-var embeddedFile []byte
+var embeddedSingBoxBinary []byte
+
+//go:embed singboxini
+var embeddedSingBoxIni []byte
 
 type AppWindow struct {
 	stokInput          *widget.Entry
@@ -337,7 +340,7 @@ func runSSHCommand(client *ssh.Client, args ...string) (string, error) {
 	session.Stderr = os.Stderr
 	cmd := exec.Command(args[0], args[1:]...)
 	if err := session.Run(cmd.String()); err != nil {
-		return "", fmt.Errorf("failed to execute command: %w", err)
+		return stdoutBuf.String(), fmt.Errorf("failed to execute command: %w", err)
 	}
 	return stdoutBuf.String(), nil
 }
@@ -409,7 +412,41 @@ func getLocalSubnet() (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("не удалось определить подсеть")
+	return "", fmt.Errorf("can't detect network")
+}
+
+func checkSSHPort(ip string, port int, wg *sync.WaitGroup, resultChan chan<- string) {
+	defer wg.Done()
+
+	address := fmt.Sprintf("%s:%d", ip, port)
+
+	conn, err := net.DialTimeout("tcp", address, 1*time.Second)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	resp, err := http.Get(fmt.Sprintf("http://%s:%d", ip, port))
+	if err != nil {
+		fmt.Printf("Failed to connect to %s:%d\n", ip, port)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("Error reading body from %s:%d\n", ip, port)
+		return
+	}
+
+	re := regexp.MustCompile(`<p class="rom-ver">.*?: ([^<]+).*?MAC.*?: ([^<]+)</p>`)
+	matches := re.FindStringSubmatch(string(body))
+	if len(matches) > 0 {
+		fmt.Printf("Port 8099 open on %s\nFirmware Version: %s\nMAC Address: %s\n", ip, matches[1], matches[2])
+		resultChan <- ip
+	} else {
+		fmt.Printf("Port 8099 open on %s, but failed to extract version and MAC\n", ip)
+	}
 }
 
 func checkPort(ip string, port int, wg *sync.WaitGroup, resultChan chan<- string) {
@@ -444,6 +481,22 @@ func checkPort(ip string, port int, wg *sync.WaitGroup, resultChan chan<- string
 	} else {
 		fmt.Printf("Port 8099 open on %s, but failed to extract version and MAC\n", ip)
 	}
+}
+
+func (w *AppWindow) getCheckSSHEnabled() bool {
+	client, err := w.loginSSH()
+	if err != nil {
+		w.logText.SetText(w.logContent)
+	}
+
+	banner, err := runSSHCommand(client, "cat", "/etc/banner")
+	if err != nil {
+		w.logContent += fmt.Sprintf("Failed to get ssh welcome: %v", err)
+		w.logText.SetText(w.logContent)
+	}
+	w.logText.SetText(banner)
+	return true
+
 }
 
 func detectRouterIP(ipInput *widget.Entry) {
@@ -621,7 +674,7 @@ func (w *AppWindow) installSingBox() {
 		w.logText.SetText(SplitString(text))
 	}
 
-	err := writeToFile("sing-box_temp", embeddedFile)
+	err := writeToFile("sing-box_temp", embeddedSingBoxBinary)
 	if err != nil {
 		w.logContent += fmt.Sprintf("Sing-box file write to local disk error %s.\n", err.Error())
 		w.logText.SetText(w.logContent)
@@ -649,8 +702,16 @@ func (w *AppWindow) installSingBox() {
 	}
 	w.showProgressWithDots("Trying to copy binary file to router", updateText, copyTask)
 
+	err = writeToFile("singboxini", embeddedSingBoxIni)
+	if err != nil {
+		w.logContent += fmt.Sprintf("Sing-box file write to local disk error %s.\n", err.Error())
+		w.logText.SetText(w.logContent)
+	}
+	w.logContent += fmt.Sprintf("Sing-box file write to local disk success!.\n")
+	w.logText.SetText(w.logContent)
+
 	copyInitTask := func() error {
-		return copyFileToRemote(client, "./singbox.init", "/etc/init.d/sing-box")
+		return copyFileToRemote(client, "./singboxini", "/etc/init.d/sing-box")
 	}
 	w.showProgressWithDots("Sing-box init file copied to router", updateText, copyInitTask)
 }
@@ -681,6 +742,21 @@ func (w *AppWindow) startSingBox() {
 	}
 	w.logContent += fmt.Sprintf("Sing-box start successful!.\n")
 	w.logText.SetText(w.logContent)
+}
+
+func (w *AppWindow) checkSingBoxStarted() {
+	client, err := w.loginSSH()
+
+	res, err := runSSHCommand(client, "/data/etc/sing-box/sing-box check -c /data/etc/sing-box/config.json -D /tmp/sing-box/")
+	if err != nil {
+		w.logContent += fmt.Sprintf("Result %s, Error %s.\n", res, err.Error())
+		w.logText.SetText(w.logContent)
+	}
+	if res != "" {
+		w.logContent += fmt.Sprintf("Sing-box start check %v.\n", res)
+		w.logText.SetText(w.logContent)
+	}
+
 }
 
 func (w *AppWindow) stopSingBox() {
@@ -900,6 +976,10 @@ func main() {
 			}
 
 		}
+
+		if appWindow.getCheckSSHEnabled() {
+			sshEnabled.SetText("SSH enabled")
+		}
 	})
 
 	sshEnableButton := widget.NewButton("Enable SSH", func() {
@@ -965,6 +1045,8 @@ func main() {
 			sshPasswordInput:   sshPasswordInput,
 		}
 		appWindow.startSingBox()
+
+		appWindow.checkSingBoxStarted()
 	})
 	startSingBox.Disable()
 
