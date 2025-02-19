@@ -143,23 +143,3 @@ Outbound может быть сколько угодно, идентификац
         "auto_detect_interface": true
     }
 ```
-
-По домену check-host ядро будет ходить напрямую без vpn. Остальные все домены и ip будут через первый outbound в списке outbounds. В данном случае для домена check-host выбран тег аутбаунда “direct”.
-
-К сожалению, оригинальное ядро singbox не умеет парсить данные, а работает только с готовым json.
-
-================================
-
-[[Парсинг](https://www.notion.so/18ea3772a4358045a691e8366770e40c?pvs=21)](https://www.notion.so/18ea3772a4358045a691e8366770e40c?pvs=21)
-
-[[Переключение через selector](https://www.notion.so/selector-18fa3772a43580798641c55c91615cc3?pvs=21)](https://www.notion.so/selector-18fa3772a43580798641c55c91615cc3?pvs=21)
-
-[[Пинг аутбаундов](https://www.notion.so/18fa3772a43580478c61e8823c35ee7c?pvs=21)](https://www.notion.so/18fa3772a43580478c61e8823c35ee7c?pvs=21)
-
-[[Модификация singbox](https://www.notion.so/singbox-18fa3772a43580ef8cb4c2b0edbe9983?pvs=21)](https://www.notion.so/singbox-18fa3772a43580ef8cb4c2b0edbe9983?pvs=21)
-
-[[Сборка бинарника](https://www.notion.so/199a3772a43580f79d0ece6328cc409c?pvs=21)](https://www.notion.so/199a3772a43580f79d0ece6328cc409c?pvs=21)
-
-[[Список изменений оригинального ТЗ](https://www.notion.so/193a3772a43580709886eec7f4678573?pvs=21)](https://www.notion.so/193a3772a43580709886eec7f4678573?pvs=21)
-
-[[Баги и ошибки](https://www.notion.so/199a3772a43580538b89e241685c2a8f?pvs=21)](https://www.notion.so/199a3772a43580538b89e241685c2a8f?pvs=21)
