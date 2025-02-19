@@ -1052,14 +1052,14 @@ func main() {
 		}
 
 		if appWindow.routerModel != "" {
-			var pic []byte
-			if pic, err = getPicForRouter(appWindow.routerModel); err == nil {
-				reader := bytes.NewReader(pic)
-				image := canvas.NewImageFromReader(reader, appWindow.routerModel)
-				routerImage.Image = image.Image
-				//routerImage.Refresh()
-				//routerImage.Show()
-			}
+			//var pic []byte
+			//if pic, err = getPicForRouter(appWindow.routerModel); err == nil {
+			//	reader := bytes.NewReader(pic)
+			//	image := canvas.NewImageFromReader(reader, appWindow.routerModel)
+			//	routerImage.Image = image.Image
+			//	//routerImage.Refresh()
+			//	//routerImage.Show()
+			//}
 			if appWindow.routerModel == "RD16" {
 				localIPs, err := getLocalIPs()
 				if err != nil {
