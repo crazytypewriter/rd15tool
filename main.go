@@ -340,6 +340,9 @@ func (w *AppWindow) LogWrite(message string) {
 }
 
 func runSSHCommand(client *ssh.Client, args ...string) (string, error) {
+	if client == nil {
+		return "", fmt.Errorf("client is nil")
+	}
 	session, err := client.NewSession()
 	if err != nil {
 		return "", fmt.Errorf("failed to create session: %w", err)
@@ -482,13 +485,16 @@ func checkPort(ip string, port int, wg *sync.WaitGroup, resultChan chan<- string
 func (w *AppWindow) getCheckSSHEnabled() bool {
 	client, err := w.loginSSH()
 	if err != nil {
+		w.logContent += fmt.Sprintf("Error getting SSH session: %v", err)
 		w.logText.SetText(w.logContent)
+		return false
 	}
 
 	banner, err := runSSHCommand(client, "cat", "/etc/banner")
 	if err != nil {
 		w.logContent += fmt.Sprintf("Failed to get ssh welcome: %v", err)
 		w.logText.SetText(w.logContent)
+		return false
 	}
 	w.logText.SetText(banner)
 	return true
@@ -1049,14 +1055,13 @@ func main() {
 		appWindow.getSshPassAndStok()
 
 		if appWindow.routerModel != "" {
-			//var pic []byte
-			//if pic, err = getPicForRouter(appWindow.routerModel); err == nil {
-			//	reader := bytes.NewReader(pic)
-			//	image := canvas.NewImageFromReader(reader, appWindow.routerModel)
-			//	routerImage.Image = image.Image
-			//	//routerImage.Refresh()
-			//	//routerImage.Show()
-			//}
+			if pic, err := getPicForRouter(appWindow.routerModel); err == nil {
+				reader := bytes.NewReader(pic)
+				image := canvas.NewImageFromReader(reader, appWindow.routerModel)
+				routerImage.Image = image.Image
+				routerImage.Refresh()
+				routerImage.Show()
+			}
 			if appWindow.routerModel == "RD16" {
 				localIPs, err := getLocalIPs()
 				if err != nil {
@@ -1079,9 +1084,9 @@ func main() {
 
 		}
 
-		if appWindow.getCheckSSHEnabled() {
-			sshEnabled.SetText("SSH enabled")
-		}
+		//if appWindow.getCheckSSHEnabled() {
+		sshEnabled.SetText("SSH enabled")
+		//}
 	})
 
 	sshEnableButton := widget.NewButton("Enable SSH", func() {
@@ -1216,6 +1221,7 @@ func main() {
 
 	sshEnabled.OnChanged = func(text string) {
 		if len(text) > 0 {
+			sshEnableButton.Enable()
 			enableSingboxPermanent.Enable()
 			stopSingBox.Enable()
 			startSingBox.Enable()
