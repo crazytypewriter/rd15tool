@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/md5"
 	_ "embed"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"io"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -37,6 +39,15 @@ var embeddedSingBoxBinary []byte
 
 //go:embed singboxini
 var embeddedSingBoxIni []byte
+
+//go:embed config.json
+var embeddedSingBoxConfig []byte
+
+//go:embed be3600.png
+var embeddedRD15pic []byte
+
+//go:embed be5000.png
+var embeddedRD16pic []byte
 
 type AppWindow struct {
 	stokInput          *widget.Entry
@@ -704,16 +715,29 @@ func (w *AppWindow) installSingBox() {
 
 	err = writeToFile("singboxini", embeddedSingBoxIni)
 	if err != nil {
-		w.logContent += fmt.Sprintf("Sing-box file write to local disk error %s.\n", err.Error())
+		w.logContent += fmt.Sprintf("Sing-box init file write to local disk error %s.\n", err.Error())
 		w.logText.SetText(w.logContent)
 	}
-	w.logContent += fmt.Sprintf("Sing-box file write to local disk success!.\n")
+	w.logContent += fmt.Sprintf("Sing-box init file write to local disk success!.\n")
 	w.logText.SetText(w.logContent)
 
 	copyInitTask := func() error {
 		return copyFileToRemote(client, "./singboxini", "/etc/init.d/sing-box")
 	}
-	w.showProgressWithDots("Sing-box init file copied to router", updateText, copyInitTask)
+	w.showProgressWithDots("Sing-box config file copied to router", updateText, copyInitTask)
+
+	err = writeToFile("config.json", embeddedSingBoxConfig)
+	if err != nil {
+		w.logContent += fmt.Sprintf("Sing-box config file write to local disk error %s.\n", err.Error())
+		w.logText.SetText(w.logContent)
+	}
+	w.logContent += fmt.Sprintf("Sing-box file write to local disk success!.\n")
+	w.logText.SetText(w.logContent)
+
+	copyConfigTask := func() error {
+		return copyFileToRemote(client, "./config.json", "/data/etc/sing-box/config.json")
+	}
+	w.showProgressWithDots("Sing-box init file copied to router", updateText, copyConfigTask)
 }
 
 func (w *AppWindow) installSingBoxConfig() {
@@ -825,7 +849,7 @@ func (w *AppWindow) enableVLAN() {
 
 	fileModifications := map[string]map[string]string{
 		"/etc/config/network": {
-			`config interface 'eth1(\.\d+)?'`:      "config interface 'eth1" + newReplacement + "'",
+			`config interface 'eth1(\.\d+)?'`:      "config interface 'eth1'",
 			`option ifname '([^']*?)eth1(\.\d+)?'`: "option ifname '${1}eth1" + newReplacement + "'",
 		},
 		"/etc/config/port_map": {
@@ -882,12 +906,102 @@ func writeToFile(filename string, data []byte) error {
 	return os.WriteFile(filename, data, 0644)
 }
 
+const (
+	port          = "8080"
+	serverMsg     = "HTTP query:"
+	sshInfo       = "SSH enabled on %s:23323."
+	trigger       = "Generating 2048 bit rsa key"
+	ping1Template = `mkdir -p /etc/config/dropbear
+a=$(/tmp/dropbearkey -t rsa -f /etc/config/dropbear/dropbear_rsa_host_key 2>&1 | base64 -w 0)
+/tmp/dropbear -r /etc/config/dropbear/dropbear_rsa_host_key -p 23323
+wget "http://{{LOCAL_IP}}:{{PORT}}/$a"`
+)
+
+type customHandler struct {
+	routerIP string
+}
+
+func runServer(localIP, routerIP string) {
+	handler := &customHandler{routerIP: routerIP}
+	server := &http.Server{
+		Addr:         ":" + port,
+		Handler:      handler,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+	}
+
+	log.Println(serverMsg, localIP+":"+port)
+
+	if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		log.Printf("HTTP can't start, error: %v", err)
+	}
+}
+
+func getLocalIPs() ([]string, error) {
+	var ips []string
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil, err
+	}
+	for _, address := range addrs {
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				ips = append(ips, ipnet.IP.String())
+			}
+		}
+	}
+	return ips, nil
+}
+
+func isValidIPv4(ip string) bool {
+	parsedIP := net.ParseIP(ip)
+	return parsedIP != nil && parsedIP.To4() != nil
+}
+
+func (h *customHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	decodedPath := r.URL.Path[1:]
+
+	if _, err := os.Stat(decodedPath); err == nil {
+		http.ServeFile(w, r, decodedPath)
+		return
+	}
+
+	decodedMessage, err := base64.StdEncoding.DecodeString(decodedPath)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	decodedStr := string(decodedMessage)
+	if strings.HasPrefix(decodedStr, trigger) {
+		log.Printf(sshInfo, h.routerIP)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func createPayload(localIP string) error {
+
+	content := strings.ReplaceAll(ping1Template, "{{LOCAL_IP}}", localIP)
+	content = strings.ReplaceAll(content, "{{PORT}}", port)
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+	content = strings.TrimSpace(content)
+
+	if err := os.WriteFile("ping1", []byte(content), 0644); err != nil {
+		log.Printf("Can't write payload: %v", err)
+		return err
+	}
+	return nil
+}
+
 func main() {
 	myApp := app.New()
 	myWindow := myApp.NewWindow("RD15 Tool")
 	myWindow.Resize(fyne.NewSize(800, 1200))
 	myWindow.CenterOnScreen()
 	sshEnabled := widget.NewEntry()
+	localIP := widget.NewEntry()
 
 	ipLabel := widget.NewLabel("IP Address:")
 	ipInput := widget.NewEntry()
@@ -968,11 +1082,32 @@ func main() {
 		}
 
 		if appWindow.routerModel != "" {
-			var pic string
+			var pic []byte
 			if pic, err = getPicForRouter(appWindow.routerModel); err == nil {
-				routerImage.File = pic
+				reader := bytes.NewReader(pic)
+				image := canvas.NewImageFromReader(reader, appWindow.routerModel)
+				routerImage.Image = image.Image
 				routerImage.Refresh()
 				routerImage.Show()
+			}
+
+			localIPs, err := getLocalIPs()
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+			//TODO compare router and local ips ang get correct
+			fmt.Println(localIPs)
+			localIP.SetText(localIPs[0])
+
+			var wg sync.WaitGroup
+			wg.Add(1)
+			fmt.Println(appWindow.routerModel)
+			//TODO change model before push!
+			if appWindow.routerModel == "RD16" {
+				go func() {
+					defer wg.Done()
+					runServer(localIPs[0], ipInput.Text)
+				}()
 			}
 
 		}
@@ -1006,6 +1141,9 @@ func main() {
 			sshPasswordInput: sshPasswordInput,
 		}
 		appWindow.enableSSHPermanent()
+		if err := createPayload(localIP.Text); err != nil {
+			fmt.Println(err.Error())
+		}
 	})
 	sshLoginButton.Disable()
 
@@ -1046,7 +1184,7 @@ func main() {
 		}
 		appWindow.startSingBox()
 
-		appWindow.checkSingBoxStarted()
+		//appWindow.checkSingBoxStarted()
 	})
 	startSingBox.Disable()
 
@@ -1088,11 +1226,11 @@ func main() {
 		appWindow.enableVLAN()
 	})
 	enableVLAN.Disable()
-	//vlanBorder := container.NewBorder(nil, nil, nil, enableVLAN, vlanIdEntry)
+	vlanBorder := container.NewBorder(nil, nil, nil, enableVLAN, vlanIdEntry)
 
-	sshPasswordInput.OnChanged = func(text string) {
-		if len(text) > 5 {
-			sshEnableButton.Enable()
+	vlanIdEntry.OnChanged = func(text string) {
+		if len(text) > 1 {
+			enableVLAN.Enable()
 		}
 	}
 
@@ -1128,7 +1266,7 @@ func main() {
 		stokLabel, stokInputBorder,
 		sshPasswordLabel, sshPasswordBorder,
 		trySSHLoginButton, sshEnableButton, sshLoginButton, openFileButton, singboxConfigInput, installSingBox, installSingBoxConfig, startSingBox, stopSingBox, enableSingboxPermanent,
-		//vlanBorder,
+		vlanBorder,
 		enableUART,
 		logText,
 	)
@@ -1137,12 +1275,12 @@ func main() {
 	myWindow.ShowAndRun()
 }
 
-func getPicForRouter(model string) (string, error) {
+func getPicForRouter(model string) ([]byte, error) {
 	switch model {
 	case "RD15":
-		return "./be3600.png", nil
+		return embeddedRD15pic, nil
 	case "RD16":
-		return "./be5000.png", nil
+		return embeddedRD16pic, nil
 	}
-	return "", errors.New("invalid model")
+	return []byte("null"), errors.New("invalid model")
 }

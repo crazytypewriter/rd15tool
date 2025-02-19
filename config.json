@@ -23,7 +23,7 @@
     {
       "type": "mixed",
       "tag": "mixed-in",
-      "listen": "$ROUTERS.IP",
+      "listen": "192.168.31.1",
       "listen_port": 1080,
       "sniff": true,
       "domain_strategy": "ipv4_only"
@@ -31,30 +31,12 @@
   ],
   "outbounds": [
     {
-      "type": "vless",
-      "tag": "vless",
-      "server": "$SERVERS.IP",
-      "server_port": 443,
-      "uuid": "UUID",
-      "flow": "xtls-rprx-vision",
-      "tls": {
-        "enabled": true,
-        "insecure": false,
-        "server_name": "google.com",
-        "utls": {
-          "enabled": true,
-          "fingerprint": "chrome"
-        },
-        "reality": {
-          "enabled": true,
-          "public_key": "$PUBLIC.KEY",
-          "short_id": "$SHORT"
-        }
-      }
-    },
-    {
       "type": "direct",
       "tag": "direct"
+    },
+    {
+      "type": "dns",
+      "tag": "dns-out"
     }
   ],
   "route": {
@@ -66,6 +48,10 @@
           ".ru"
         ],
         "outbound": "direct"
+      },
+      {
+        "protocol": "dns",
+        "outbound": "dns-out"
       },
       {
         "type": "logical",
@@ -112,5 +98,11 @@
         "outbound": "vless"
       }
     ]
+  },
+  "experimental": {
+    "clash_api": {
+      "external_controller": "192.168.31.1:16756",
+      "secret": "gGY-Uyys7fbgbns"
+    }
   }
 }

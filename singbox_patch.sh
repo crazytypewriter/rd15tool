@@ -9,7 +9,7 @@ START=98
 USE_PROCD=1
 PROG=/data/etc/sing-box/sing-box
 CONF=/data/etc/sing-box/config.json
-WORKDIR=/data/etc/sing-box
+WORKDIR=/tmp/sing-box
 
 start_service() {
         [ -f "$PROG" ] && {
