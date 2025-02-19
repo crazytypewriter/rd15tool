@@ -426,38 +426,23 @@ func getLocalSubnet() (string, error) {
 	return "", fmt.Errorf("can't detect network")
 }
 
-func checkSSHPort(ip string, port int, wg *sync.WaitGroup, resultChan chan<- string) {
-	defer wg.Done()
-
-	address := fmt.Sprintf("%s:%d", ip, port)
-
-	conn, err := net.DialTimeout("tcp", address, 1*time.Second)
+func (w *AppWindow) checkSingBoxStarted(ip string) {
+	resp, err := http.Get(fmt.Sprintf("http://%s:%d", ip, 16756))
 	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	resp, err := http.Get(fmt.Sprintf("http://%s:%d", ip, port))
-	if err != nil {
-		fmt.Printf("Failed to connect to %s:%d\n", ip, port)
+		fmt.Printf("Failed to connect to %s:%d\n", ip, 16756)
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("Error reading body from %s:%d\n", ip, port)
-		return
+		w.logContent += fmt.Sprintf("Error reading body from: %v", err)
+		w.logText.SetText(w.logContent)
 	}
 
-	re := regexp.MustCompile(`<p class="rom-ver">.*?: ([^<]+).*?MAC.*?: ([^<]+)</p>`)
-	matches := re.FindStringSubmatch(string(body))
-	if len(matches) > 0 {
-		fmt.Printf("Port 8099 open on %s\nFirmware Version: %s\nMAC Address: %s\n", ip, matches[1], matches[2])
-		resultChan <- ip
-	} else {
-		fmt.Printf("Port 8099 open on %s, but failed to extract version and MAC\n", ip)
-	}
+	w.logContent += fmt.Sprintf("Sing-box started: %s", body)
+	w.logText.SetText(w.logContent)
+
 }
 
 func checkPort(ip string, port int, wg *sync.WaitGroup, resultChan chan<- string) {
@@ -768,21 +753,6 @@ func (w *AppWindow) startSingBox() {
 	w.logText.SetText(w.logContent)
 }
 
-func (w *AppWindow) checkSingBoxStarted() {
-	client, err := w.loginSSH()
-
-	res, err := runSSHCommand(client, "/data/etc/sing-box/sing-box check -c /data/etc/sing-box/config.json -D /tmp/sing-box/")
-	if err != nil {
-		w.logContent += fmt.Sprintf("Result %s, Error %s.\n", res, err.Error())
-		w.logText.SetText(w.logContent)
-	}
-	if res != "" {
-		w.logContent += fmt.Sprintf("Sing-box start check %v.\n", res)
-		w.logText.SetText(w.logContent)
-	}
-
-}
-
 func (w *AppWindow) stopSingBox() {
 	client, err := w.loginSSH()
 
@@ -1087,23 +1057,23 @@ func main() {
 				reader := bytes.NewReader(pic)
 				image := canvas.NewImageFromReader(reader, appWindow.routerModel)
 				routerImage.Image = image.Image
-				routerImage.Refresh()
-				routerImage.Show()
+				//routerImage.Refresh()
+				//routerImage.Show()
 			}
-
-			localIPs, err := getLocalIPs()
-			if err != nil {
-				fmt.Println(err.Error())
-			}
-			//TODO compare router and local ips ang get correct
-			fmt.Println(localIPs)
-			localIP.SetText(localIPs[0])
-
-			var wg sync.WaitGroup
-			wg.Add(1)
-			fmt.Println(appWindow.routerModel)
-			//TODO change model before push!
 			if appWindow.routerModel == "RD16" {
+				localIPs, err := getLocalIPs()
+				if err != nil {
+					fmt.Println(err.Error())
+				}
+				//TODO compare router and local ips ang get correct
+				fmt.Println(localIPs)
+				localIP.SetText(localIPs[0])
+
+				var wg sync.WaitGroup
+				wg.Add(1)
+				fmt.Println(appWindow.routerModel)
+				//TODO change model before push!
+
 				go func() {
 					defer wg.Done()
 					runServer(localIPs[0], ipInput.Text)
@@ -1184,7 +1154,7 @@ func main() {
 		}
 		appWindow.startSingBox()
 
-		//appWindow.checkSingBoxStarted()
+		appWindow.checkSingBoxStarted(ipInput.Text)
 	})
 	startSingBox.Disable()
 
