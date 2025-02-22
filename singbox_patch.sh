@@ -7,8 +7,8 @@ echo '#!/bin/sh /etc/rc.common
 
 START=98
 USE_PROCD=1
-PROG=/data/etc/sing-box/sing-box
-CONF=/data/etc/sing-box/config.json
+PROG=/data/sing-box/sing-box
+CONF=/data/sing-box/config.json
 WORKDIR=/tmp/sing-box
 
 start_service() {

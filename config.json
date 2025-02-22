@@ -95,7 +95,7 @@
             ]
           }
         ],
-        "outbound": "vless"
+        "outbound": "wg"
       }
     ]
   },

@@ -32,21 +32,15 @@
   "outbounds": [
     {
       "type": "wireguard",
-      "tag": "wg-out",
-
-      "server": "127.0.0.1",
-      "server_port": 10001,
+      "tag": "wg",
       "system_interface": true,
-      "gso": true,
-      "interface_name": "wg0",
-      "local_address": [
-        "10.0.0.1/32"
-      ],
-      "private_key": "$private_key",
-      "peer_public_key": "$peer_public_key",
-      "pre_shared_key": "$pre_shared_key",
-      "reserved": [0, 0, 0],
-      "mtu": 1408
+      "server": "<serverIP>",
+      "server_port": 51820,
+      "local_address": "10.8.0.11/24",
+      "private_key": "<privateKey>",
+      "peer_public_key": "<peer_public_key>",
+      "pre_shared_key": "<pre_shared_key>",
+      "mtu": 1420
     },
     {
       "type": "direct",
