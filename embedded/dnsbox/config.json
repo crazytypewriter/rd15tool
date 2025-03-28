@@ -1,0 +1,41 @@
+{
+  "server": {
+    "address": [
+      "127.0.0.1:953",
+      "[::]:953"
+    ],
+    "log": "debug"
+  },
+  "dns": {
+    "nameservers": [
+      "8.8.8.8:53",
+      "1.1.1.1:53"
+    ],
+    "timeout": 5
+  },
+  "ipset": {
+    "ipv4name": "vpn_domains",
+    "ipv6name": "vpn_domains6"
+  },
+  "rules": {
+    "domain": [
+      "rutor.is",
+      "rutracker.org"
+    ],
+    "domain_suffix": [
+      ".googlevideo.com",
+      ".ytimg.com",
+      ".play.google.com",
+      ".youtubei.googleapis.com",
+      ".ytimg.l.google.com",
+      ".youtube.googleapis.com",
+      ".youtube.com",
+      ".youtube-nocookie.com",
+      ".doubleclick.net",
+      ".ggpht.com",
+      ".www.youtube.com",
+      ".youtubekids.com"
+    ]
+  },
+  "Path": "/data/dns-box/config.json"
+}  

@@ -1,0 +1,80 @@
+{
+  "log": {
+    "level": "info"
+  },
+  "dns": {
+    "servers": [
+      {
+        "address": "tls://8.8.8.8"
+      }
+    ]
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun",
+      "interface_name": "tun0",
+      "domain_strategy": "ipv4_only",
+      "inet4_address": "172.16.250.1/30",
+      "auto_route": false,
+      "strict_route": false,
+      "sniff": true
+    },
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "192.168.31.1",
+      "listen_port": 1080,
+      "sniff": true,
+      "domain_strategy": "ipv4_only"
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "vless",
+      "tag": "freedom",
+      "server": "YOURSERVERIP",
+      "server_port": 443,
+      "uuid": "UUID",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "insecure": false,
+        "server_name": "google.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "PUBLICKEY",
+          "short_id": "SHORTID"
+        }
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "dns",
+      "tag": "dns-out"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "final": "freedom",
+    "rules": [
+      {
+        "protocol": "dns",
+        "outbound": "dns-out"
+      }
+    ]
+  },
+  "experimental": {
+    "clash_api": {
+      "external_controller": "192.168.31.1:16756",
+      "secret": "gGY-Uyys7fbgbns"
+    }
+  }
+}

@@ -18,7 +18,21 @@ start_service() {
                 procd_set_param limits core="unlimited"
                 procd_set_param limits nofile="1000000 1000000"
                 procd_set_param respawn
+                procd_set_param stdout 1
+                procd_set_param stderr 1
                 procd_close_instance
+
+                (
+                    for i in $(seq 1 50); do
+                        if [ -d "/sys/class/net/tun0" ]; then
+                            sleep 2
+                            ip route add default dev tun0 table vpn
+                            ip -6 route add default dev tun0 table vpn
+                            exit 0
+                        fi
+                        sleep 1
+                    done
+                ) &
         }
 
 }
