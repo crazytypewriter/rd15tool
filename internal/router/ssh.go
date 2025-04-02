@@ -532,6 +532,7 @@ func copyBinaryToRemote(client *ssh.Client, reader io.Reader, size int64, remote
 	defer stdin.Close()
 
 	remoteDir := filepath.Dir(remotePath)
+	remoteDir = filepath.ToSlash(remoteDir)
 	remoteFileName := filepath.Base(remotePath)
 
 	mkdirSession, err := client.NewSession()
