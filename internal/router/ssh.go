@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -537,7 +538,7 @@ func copyBinaryToRemote(client *ssh.Client, reader io.Reader, size int64, remote
 	if err != nil {
 		return fmt.Errorf("failed to create mkdir session: %w", err)
 	}
-	if output, err := mkdirSession.CombinedOutput(fmt.Sprintf("mkdir -p %s", remoteDir)); err != nil {
+	if output, err := mkdirSession.CombinedOutput(fmt.Sprintf("mkdir -p %s", strconv.Quote(remoteDir))); err != nil {
 		mkdirSession.Close()
 		return fmt.Errorf("failed to create remote directory: %s: %w", string(output), err)
 	}
