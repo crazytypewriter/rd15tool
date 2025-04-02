@@ -207,13 +207,13 @@ func (sm *SSHManager) InstallDnsBox(ip, password string) bool {
 	}
 	defer client.Close()
 
-	if !sm.copyEmbeddedFileWithProgress(client, "Copying sing-box binary", embedded.DnsBoxBinary, "/data/sing-box/sing-box") {
+	if !sm.copyEmbeddedFileWithProgress(client, "Copying dns-box binary", embedded.DnsBoxBinary, "/data/dns-box/dns-box") {
 		return false
 	}
-	if !sm.copyEmbeddedFileWithProgress(client, "Copying init.d file", embedded.DnsBoxIni, "/etc/init.d/sing-box") {
+	if !sm.copyEmbeddedFileWithProgress(client, "Copying dns-box init.d file", embedded.DnsBoxIni, "/etc/init.d/dns-box") {
 		return false
 	}
-	if !sm.copyEmbeddedFileWithProgress(client, "Copying sing-box config", embedded.DnsBoxConfig, "/data/sing-box/config.json") {
+	if !sm.copyEmbeddedFileWithProgress(client, "Copying dns-box config", embedded.DnsBoxConfig, "/data/dns-box/config.json") {
 		return false
 	}
 
@@ -340,6 +340,15 @@ func (sm *SSHManager) FirewallPatchInstall(ip, password string) bool {
 	if !sm.copyEmbeddedFileWithProgress(client, "Copying firewall patch", embedded.FirewallPatch, "/etc/crontabs/patches/firewall_patch.sh") {
 		return false
 	}
+
+	cmdR := "crontab -l > /tmp/current_crontab && if ! grep -q 'firewall_patch.sh' /tmp/current_crontab; then echo '*/1 * * * * /etc/crontabs/patches/firewall_patch.sh >/dev/null 2>&1' >> /tmp/current_crontab; crontab /tmp/current_crontab; fi"
+	_, err = runSSHCommand(client, cmdR)
+	if err != nil {
+		sm.logWriter.LogWrite(fmt.Sprintf("Failed to add firewall check to cron: %v.", err))
+		return false
+	}
+	sm.logWriter.LogWrite(fmt.Sprintf("Firewall cron task installed!"))
+
 	err = sm.restartCron(client)
 	if err != nil {
 		sm.logWriter.LogWrite(fmt.Sprintf("Failed to restart cron: %v", err))
@@ -393,7 +402,7 @@ func (sm *SSHManager) FirewallReload(ip, password string) bool {
 	cmdRun := "/data/userdisk/appdata/firewall.sh reload"
 	_, err = runSSHCommand(client, cmdRun)
 	if err != nil {
-		sm.logWriter.LogWrite(fmt.Sprintf("Error uninstall task for firewall:  %s.", err.Error()))
+		sm.logWriter.LogWrite(fmt.Sprintf("Error reloading firewall:  %s.", err.Error()))
 		return false
 	}
 	return false
@@ -528,9 +537,9 @@ func copyBinaryToRemote(client *ssh.Client, reader io.Reader, size int64, remote
 	if err != nil {
 		return fmt.Errorf("failed to create mkdir session: %w", err)
 	}
-	if err := mkdirSession.Run(fmt.Sprintf("mkdir -p %s", remoteDir)); err != nil {
+	if output, err := mkdirSession.CombinedOutput(fmt.Sprintf("mkdir -p %s", remoteDir)); err != nil {
 		mkdirSession.Close()
-		return fmt.Errorf("failed to create remote directory: %w", err)
+		return fmt.Errorf("failed to create remote directory: %s: %w", string(output), err)
 	}
 	mkdirSession.Close()
 
