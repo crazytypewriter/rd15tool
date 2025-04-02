@@ -57,6 +57,7 @@ func (aw *AppWindow) setupUI() {
 
 	aw.UI.InstallDnsBoxBtn.OnTapped = aw.handleInstallDnsBox
 	aw.UI.UninstallDnsBoxBtn.OnTapped = aw.handleUninstallDnsBox
+	aw.UI.InstallPermDnsBoxBtn.OnTapped = aw.handleInstallDnsBoxPermanent
 	aw.UI.StartDnsBoxBtn.OnTapped = aw.handleStartDnsBox
 	aw.UI.StopDnsBoxBtn.OnTapped = aw.handleStopDnsBox
 	aw.UI.RestartDnsBoxBtn.OnTapped = aw.handleRestartDnsBox
@@ -174,6 +175,11 @@ func (aw *AppWindow) handleInstallSingboxConfig() {
 func (aw *AppWindow) handleSingboxEnablePermanent() {
 	SSHManager := router.NewSSHManager(aw, aw)
 	SSHManager.EnableSingboxPermanent(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
+}
+
+func (aw *AppWindow) handleInstallDnsBoxPermanent() {
+	SSHManager := router.NewSSHManager(aw, aw)
+	SSHManager.EnableDnsBoxPermanent(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
 }
 
 func (aw *AppWindow) handleStartSingBox() {

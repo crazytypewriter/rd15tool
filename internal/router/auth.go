@@ -61,8 +61,7 @@ func (c *AuthClient) EnableSSH(ip, stok string) bool {
 		"'%0A%2Fetc%2Finit.d%2Fdropbear%20start'",
 	}
 
-	fmt.Println("Sending requests to IP:", ip)
-	fmt.Println("Using STOK:", stok)
+	c.logWriter.LogWrite("Try to enable SSH...")
 
 	for _, cmd := range commands {
 		data := fmt.Sprintf("uid=1234&key=1234%s", cmd)
@@ -99,7 +98,7 @@ func (c *AuthClient) EnableSSH(ip, stok string) bool {
 		}
 	}
 
-	c.logWriter.LogWrite("SSH success enabled!")
+	c.logWriter.LogWrite("... SSH success enabled!")
 	return true
 }
 

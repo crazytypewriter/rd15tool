@@ -225,44 +225,6 @@ func (sm *SSHManager) InstallDnsBox(ip, password string) bool {
 	return true
 }
 
-func (sm *SSHManager) ChangeDnsMasqConfig(client *ssh.Client, add bool) bool {
-	fileModifications := map[string]map[string]string{}
-
-	if add {
-		// Добавляем нужные строки
-		fileModifications["/etc/config/dhcp"] = map[string]string{
-			`(?m)(option resolvfile '\/tmp\/resolv\.conf\.d\/resolv\.conf\.auto')`: "$1\n        option noresolv '1'",
-			`(?m)(config dnsmasq)`: "$1\n        list server '127.0.0.1#953'",
-		}
-	} else {
-		// Удаляем строки
-		fileModifications["/etc/config/dhcp"] = map[string]string{
-			`(?m)^\s*option noresolv '1'\n?`:            "",
-			`(?m)^\s*list server '127\.0\.0\.1#953'\n?`: "",
-		}
-	}
-
-	for filePath, patterns := range fileModifications {
-		replacements := make(map[*regexp.Regexp]string)
-		for pattern, replacement := range patterns {
-			re, err := regexp.Compile(pattern)
-			if err != nil {
-				fmt.Println("Error compiling regex:", err)
-				sm.logWriter.LogWrite(fmt.Sprintf("Error compiling regex: %s.\n", err.Error()))
-				return false
-			}
-			replacements[re] = replacement
-		}
-
-		if err := sm.replaceRemoteFileRegex(client, filePath, replacements); err != nil {
-			sm.logWriter.LogWrite(fmt.Sprintf("Error updating: %s", err))
-			return false
-		}
-	}
-
-	return true
-}
-
 func (sm *SSHManager) UninstallDnsBox(ip, password string) bool {
 	client, err := sm.Connect(ip, password)
 	if err != nil {
@@ -291,7 +253,7 @@ func (sm *SSHManager) UninstallDnsBox(ip, password string) bool {
 		return false
 	}
 
-	if !sm.ChangeDnsMasqConfig(client, true) {
+	if !sm.ChangeDnsMasqConfig(client, false) {
 		return false
 	}
 
@@ -426,6 +388,70 @@ func (sm *SSHManager) restartCron(client *ssh.Client) error {
 	}
 	sm.logWriter.LogWrite("Cron restarted successfully!")
 	return nil
+}
+
+func (sm *SSHManager) ChangeDnsMasqConfig(client *ssh.Client, add bool) bool {
+	filePath := "/etc/config/dhcp"
+	currentContent, err := sm.readRemoteFile(client, filePath)
+	if err != nil {
+		sm.logWriter.LogWrite(fmt.Sprintf("Error reading file: %s", err))
+		return false
+	}
+
+	fileModifications := map[string]map[string]string{}
+
+	if add {
+		noresolvExists := strings.Contains(currentContent, "option noresolv '1'")
+		serverExists := strings.Contains(currentContent, "list server '127.0.0.1#953'")
+
+		if noresolvExists && serverExists {
+			return true // Уже изменено
+		}
+
+		modifications := map[string]string{}
+		if !noresolvExists {
+			modifications[`(?m)(option resolvfile '\/tmp\/resolv\.conf\.d\/resolv\.conf\.auto')`] =
+				"$1\n        option noresolv '1'"
+		}
+		if !serverExists {
+			modifications[`(?m)(config dnsmasq)`] = "$1\n        list server '127.0.0.1#953'"
+		}
+
+		if len(modifications) > 0 {
+			fileModifications[filePath] = modifications
+		}
+	} else {
+		modifications := map[string]string{}
+		if strings.Contains(currentContent, "option noresolv '1'") {
+			modifications[`(?m)^\s*option noresolv '1'\n?`] = ""
+		}
+		if strings.Contains(currentContent, "list server '127.0.0.1#953'") {
+			modifications[`(?m)^\s*list server '127\.0\.0\.1#953'\n?`] = ""
+		}
+
+		if len(modifications) > 0 {
+			fileModifications[filePath] = modifications
+		}
+	}
+
+	for filePath, patterns := range fileModifications {
+		replacements := make(map[*regexp.Regexp]string)
+		for pattern, replacement := range patterns {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				sm.logWriter.LogWrite(fmt.Sprintf("Error compiling regex: %s", err))
+				return false
+			}
+			replacements[re] = replacement
+		}
+
+		if err := sm.replaceRemoteFileRegex(client, filePath, replacements); err != nil {
+			sm.logWriter.LogWrite(fmt.Sprintf("Error updating: %s", err))
+			return false
+		}
+	}
+
+	return true
 }
 
 func (sm *SSHManager) ConfigureVLAN(ip, password, vlanID string) bool {
@@ -673,4 +699,22 @@ func (sm *SSHManager) replaceRemoteFileRegex(client *ssh.Client, filePath string
 
 	sm.logWriter.LogWrite("File updated successfully on remote host!")
 	return nil
+}
+
+func (sm *SSHManager) readRemoteFile(client *ssh.Client, filePath string) (string, error) {
+	session, err := client.NewSession()
+	if err != nil {
+		return "", fmt.Errorf("failed to create SSH session: %v", err)
+	}
+	defer session.Close()
+
+	var stdoutBuf bytes.Buffer
+	session.Stdout = &stdoutBuf
+	cmd := fmt.Sprintf("cat %s", filePath)
+
+	if err := session.Run(cmd); err != nil {
+		return "", fmt.Errorf("failed to read file %s: %v", filePath, err)
+	}
+
+	return stdoutBuf.String(), nil
 }
