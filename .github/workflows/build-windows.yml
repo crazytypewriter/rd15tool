@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Login to GitHub Packages
-      - run: echo "machine github.com login crazytypewriter password ${{ secrets.GITHUB_TOKEN }}" > ~/.netrc
+        run: echo "machine github.com login crazytypewriter password ${{ secrets.GITHUB_TOKEN }}" > ~/.netrc
 
       - name: Checkout code
         uses: actions/checkout@v3
