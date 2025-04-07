@@ -26,7 +26,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: ^1.23
+            go-version: '>=1.24.2'
+            check-latest: false
+            token: ${{ github.token }}
+            cache: true
 
       - name: Add SSH key
         run: |
