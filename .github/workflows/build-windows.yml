@@ -12,10 +12,11 @@ jobs:
     env:
       GOPRIVATE: github.com/crazytypewriter/sing-lib
 
-
     steps:
-      - name: Login to GitHub Packages
-        run: echo "machine github.com login crazytypewriter password ${{ secrets.GITHUB_TOKEN }}" > ~/.netrc
+      - name: Configure Git for private modules
+        run: |
+            git config --global url."https://${{ secrets.PRIVATE_REPO_TOKEN }}@github.com".insteadOf "https://github.com"
+            echo "machine github.com login crazytypewriter password ${{ secrets.PRIVATE_REPO_TOKEN }}" > ~/.netrc
 
       - name: Checkout code
         uses: actions/checkout@v3
