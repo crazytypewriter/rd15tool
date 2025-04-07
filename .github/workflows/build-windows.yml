@@ -26,11 +26,9 @@ jobs:
 
       - name: Configure Git for private modules (Debug)
         run: |
+          git config --global --unset url.https://github.com.insteadOf 
           git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com".insteadOf "https://github.com"
           git config --global -l # List all Git configuration
-
-      - name: Test Go Get (Debug)
-        run: go get -v github.com/crazytypewriter/sing-lib
 
       - name: Cache Go Modules
         uses: actions/cache@v3
