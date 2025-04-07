@@ -4,10 +4,10 @@ package router
 import (
 	"bytes"
 	"fmt"
+	"github.com/crazytypewriter/rd15tool/embedded"
+	"github.com/crazytypewriter/rd15tool/pkg/interfaces"
 	"golang.org/x/crypto/ssh"
 	"io"
-	"io.rd15.tool/embedded"
-	"io.rd15.tool/pkg/interfaces"
 	"os"
 	"os/exec"
 	"path/filepath"

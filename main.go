@@ -2,7 +2,7 @@ package main
 
 import (
 	"fyne.io/fyne/v2/app"
-	rdapp "io.rd15.tool/internal/app"
+	rdapp "github.com/crazytypewriter/rd15tool/internal/app"
 )
 
 func main() {
