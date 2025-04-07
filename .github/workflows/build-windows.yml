@@ -26,10 +26,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-            go-version: '>=1.24.2'
-            check-latest: false
-            token: ${{ github.token }}
-            cache: true
+            go-version: '>=1.23.5'
 
       - name: Add SSH key
         run: |
@@ -38,28 +35,10 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-      - name: Check SSH key format
-        run: head -n 5 ~/.ssh/id_rsa
-
-      - name: Check SSH key permissions
-        run: ls -al ~/.ssh/id_rsa
-
-      - name: Check known_hosts
-        run: cat ~/.ssh/known_hosts
-
       - name: Configure Git for SSH
         run: |
           git config --global url."git@github.com:".insteadOf "https://github.com/"
 
-      - name: Cache Go Modules
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
 
       - name: Vendor dependencies
         run: |
