@@ -8,6 +8,9 @@ on:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
 
     env:
       GOPRIVATE: github.com/crazytypewriter/sing-lib
