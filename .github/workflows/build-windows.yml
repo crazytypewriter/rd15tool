@@ -26,9 +26,12 @@ jobs:
 
       - name: Configure Git for private modules (Debug)
         run: |
-          git config --global --unset url.https://github.com.insteadOf 
-          git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com".insteadOf "https://github.com"
-          git config --global -l # List all Git configuration
+            echo "Attempting to unset existing url.https://github.com.insteadOf"
+            git config --global --unset url.https://github.com.insteadOf || true 
+            echo "Setting url.insteadOf for private repository access"
+            git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com".insteadOf "https://github.com"
+            echo "Current global Git configuration:"
+            git config --global -l
 
       - name: Cache Go Modules
         uses: actions/cache@v3
