@@ -19,6 +19,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Update SSH client
+        run: sudo apt-get update && sudo apt-get install --reinstall -y openssh-client
+
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
@@ -26,10 +30,27 @@ jobs:
 
       - name: Add SSH key
         run: |
-            mkdir -p ~/.ssh
-            echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/id_rsa
-            chmod 600 ~/.ssh/id_rsa
-            ssh-keyscan github.com >> ~/.ssh/known_hosts
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Check SSH key format
+        run: head -n 5 ~/.ssh/id_rsa
+
+      - name: Check SSH key permissions
+        run: ls -al ~/.ssh/id_rsa
+
+      - name: Check known_hosts
+        run: cat ~/.ssh/known_hosts
+
+      - name: Configure Git for SSH
+        run: |
+          git config --global url."git@github.com:".insteadOf "https://github.com/"
+
+      - name: Test SSH connection (optional)
+        run: ssh -v -o IdentitiesOnly=yes -i ~/.ssh/id_rsa -o PreferredAuthentications=publickey -o PubkeyAcceptedKeyTypes=rsa git@github.com
+        continue-on-error: true
 
       - name: Configure Git for SSH
         run: git config --global url."git@github.com:".insteadOf "https://github.com/"
