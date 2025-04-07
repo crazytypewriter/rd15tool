@@ -26,7 +26,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-            go-version: '>=1.24.2'
+            go-version: '>=1.23.5'
             check-latest: false
             token: ${{ github.token }}
             cache: true
@@ -50,14 +50,6 @@ jobs:
       - name: Configure Git for SSH
         run: |
           git config --global url."git@github.com:".insteadOf "https://github.com/"
-
-      - name: Test SSH connection (optional)
-        run: ssh -v -o IdentitiesOnly=yes -i ~/.ssh/id_rsa -o PreferredAuthentications=publickey -o PubkeyAcceptedKeyTypes=rsa git@github.com
-        continue-on-error: true
-
-      - name: Configure Git for SSH
-        run: git config --global url."git@github.com:".insteadOf "https://github.com/"
-
 
       - name: Cache Go Modules
         uses: actions/cache@v3
