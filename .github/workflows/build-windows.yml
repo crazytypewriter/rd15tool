@@ -15,8 +15,7 @@ jobs:
     steps:
       - name: Configure Git for private modules
         run: |
-            git config --global url."https://${{ secrets.PRIVATE_REPO_TOKEN }}@github.com".insteadOf "https://github.com"
-            echo "machine github.com login crazytypewriter password ${{ secrets.PRIVATE_REPO_TOKEN }}" > ~/.netrc
+          git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com".insteadOf "https://github.com"
 
       - name: Checkout code
         uses: actions/checkout@v3
