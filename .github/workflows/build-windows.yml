@@ -9,7 +9,14 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
 
+    env:
+      GOPRIVATE: github.com/crazytypewriter/sing-lib
+
+
     steps:
+      - name: Login to GitHub Packages
+      - run: echo "machine github.com login crazytypewriter password ${{ secrets.GITHUB_TOKEN }}" > ~/.netrc
+
       - name: Checkout code
         uses: actions/checkout@v3
 
