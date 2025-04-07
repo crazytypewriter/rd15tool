@@ -17,26 +17,31 @@ import (
 )
 
 type SSHManager struct {
+	clientConfig          *ssh.ClientConfig
 	Client                *ssh.Client
 	logWriter             interfaces.LogWriter
 	logWriterWithProgress interfaces.LogWriterWithProgress
 }
 
-func NewSSHManager(logWriter interfaces.LogWriter, logWriterWithProgress interfaces.LogWriterWithProgress) *SSHManager {
+func NewSSHManager(
+	logWriter interfaces.LogWriter,
+	logWriterWithProgress interfaces.LogWriterWithProgress,
+	password string,
+) *SSHManager {
+
 	return &SSHManager{
+		clientConfig: &ssh.ClientConfig{
+			User:            "root",
+			Auth:            []ssh.AuthMethod{ssh.Password(password)},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(), // Не для продакшена!
+		},
 		logWriter:             logWriter,
 		logWriterWithProgress: logWriterWithProgress,
 	}
 }
 
 func (sm *SSHManager) Connect(ip, sshPass string) (*ssh.Client, error) {
-	config := &ssh.ClientConfig{
-		User:            "root",
-		Auth:            []ssh.AuthMethod{ssh.Password(sshPass)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	}
-
-	client, err := ssh.Dial("tcp", ip+":22", config)
+	client, err := ssh.Dial("tcp", ip+":22", sm.clientConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +168,7 @@ func (sm *SSHManager) UninstallSingBox(ip, password string) bool {
 	return true
 }
 
-func (sm *SSHManager) InstallSingBoxConfig(ip, password, config string) bool {
+func (sm *SSHManager) InstallSingBoxConfig(ip, password, config string, isContent bool) bool {
 	client, err := sm.Connect(ip, password)
 	if err != nil {
 		sm.logWriter.LogWrite(fmt.Sprintf("Error ssh login %s.", err.Error()))
@@ -174,7 +179,7 @@ func (sm *SSHManager) InstallSingBoxConfig(ip, password, config string) bool {
 	if strings.HasPrefix(config, "file://") {
 		config = strings.TrimPrefix(config, "file://")
 	}
-	err = copyFileToRemote(client, config, "/data/sing-box/config.json")
+	err = copyToRemote(client, config, "/data/sing-box/config.json", isContent)
 	if err != nil {
 		sm.logWriter.LogWrite(fmt.Sprintf("Error copying config file to router %s.", err.Error()))
 		return false
@@ -618,16 +623,26 @@ func runSSHCommand(client *ssh.Client, args ...string) (string, error) {
 	return stdoutBuf.String(), nil
 }
 
-func copyFileToRemote(client *ssh.Client, localPath, remotePath string) error {
-	srcFile, err := os.Open(localPath)
-	if err != nil {
-		return fmt.Errorf("failed to open local file: %w", err)
-	}
-	defer srcFile.Close()
+func copyToRemote(client *ssh.Client, localPathOrContent, remotePath string, isContent bool) error {
+	var srcFile *os.File
+	var err error
 
-	srcFileInfo, err := srcFile.Stat()
-	if err != nil {
-		return fmt.Errorf("failed to stat local file: %w", err)
+	if isContent {
+		srcFile = nil
+	} else {
+		srcFile, err = os.Open(localPathOrContent)
+		if err != nil {
+			return fmt.Errorf("failed to open local file: %w", err)
+		}
+		defer srcFile.Close()
+	}
+
+	var srcFileInfo os.FileInfo
+	if !isContent {
+		srcFileInfo, err = srcFile.Stat()
+		if err != nil {
+			return fmt.Errorf("failed to stat local file: %w", err)
+		}
 	}
 
 	session, err := client.NewSession()
@@ -647,10 +662,20 @@ func copyFileToRemote(client *ssh.Client, localPath, remotePath string) error {
 		return fmt.Errorf("failed to start remote scp command: %w", err)
 	}
 
-	fmt.Fprintf(pipe, "C%#o %d %s\n", srcFileInfo.Mode().Perm()|0111, srcFileInfo.Size(), filepath.Base(remotePath))
+	// Если передан файл, передаем его информацию
+	if !isContent {
+		fmt.Fprintf(pipe, "C%#o %d %s\n", srcFileInfo.Mode().Perm()|0111, srcFileInfo.Size(), filepath.Base(remotePath))
 
-	if _, err := io.Copy(pipe, srcFile); err != nil {
-		return fmt.Errorf("failed to copy file content: %w", err)
+		if _, err := io.Copy(pipe, srcFile); err != nil {
+			return fmt.Errorf("failed to copy file content: %w", err)
+		}
+	} else {
+		// Если передан контент, передаем его напрямую в pipe
+		fmt.Fprintf(pipe, "C%#o %d %s\n", 0644, len(localPathOrContent), filepath.Base(remotePath))
+
+		if _, err := io.Copy(pipe, strings.NewReader(localPathOrContent)); err != nil {
+			return fmt.Errorf("failed to copy content: %w", err)
+		}
 	}
 
 	fmt.Fprint(pipe, "\x00")
@@ -717,4 +742,27 @@ func (sm *SSHManager) readRemoteFile(client *ssh.Client, filePath string) (strin
 	}
 
 	return stdoutBuf.String(), nil
+}
+
+func (sm *SSHManager) ReadRemoteFile(filePath, ip, password string) (bytes.Buffer, error) {
+	client, err := sm.Connect(ip, password)
+	if err != nil {
+		sm.logWriter.LogWrite(fmt.Sprintf("Error ssh login %s.", err.Error()))
+		return bytes.Buffer{}, err
+	}
+	session, err := client.NewSession()
+	if err != nil {
+		return bytes.Buffer{}, fmt.Errorf("failed to create SSH session: %v", err)
+	}
+	defer session.Close()
+
+	var stdoutBuf bytes.Buffer
+	session.Stdout = &stdoutBuf
+	cmd := fmt.Sprintf("cat %s", filePath)
+
+	if err := session.Run(cmd); err != nil {
+		return bytes.Buffer{}, fmt.Errorf("failed to read file %s: %v", filePath, err)
+	}
+
+	return stdoutBuf, nil
 }

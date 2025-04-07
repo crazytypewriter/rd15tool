@@ -1,4 +1,3 @@
-// internal/app/appwindow.go
 package app
 
 import (
@@ -18,19 +17,21 @@ import (
 )
 
 type AppWindow struct {
-	Window     fyne.Window
-	UI         *gui.Components
-	SSHClient  *router.SSHManager
-	Services   *services.NetworkService
-	AuthClient *router.AuthClient
+	Window        fyne.Window
+	UI            *gui.Components
+	SSHClient     *router.SSHManager
+	Services      *services.NetworkService
+	AuthClient    *router.AuthClient
+	ConfigManager *services.ConfigManager
 }
 
 func NewAppWindow(app fyne.App) *AppWindow {
 	aw := &AppWindow{
-		Window:     app.NewWindow("RD15 Tool"),
-		UI:         gui.NewComponents(),
-		Services:   services.NewNetworkService(),
-		AuthClient: router.NewAuthClient(nil),
+		Window:        app.NewWindow("RD15 Tool"),
+		UI:            gui.NewComponents(),
+		Services:      services.NewNetworkService(),
+		AuthClient:    router.NewAuthClient(nil),
+		ConfigManager: services.NewConfigManager(),
 	}
 	aw.setupUI()
 	return aw
@@ -46,11 +47,17 @@ func (aw *AppWindow) setupUI() {
 	aw.UI.SSHEnablePermanentButton.OnTapped = aw.handleSSHEnablePermanent
 
 	aw.UI.TelegramLoginBtn.OnTapped = aw.handleTelegramLogin
-	aw.UI.ConfigFileBtn.OnTapped = aw.handleConfigSelect
+
 	aw.UI.InstallSingBoxBtn.OnTapped = aw.handleInstallSingbox
 	aw.UI.InstallSingBoxPermBtn.OnTapped = aw.handleSingboxEnablePermanent
-	aw.UI.ConfigInstallFileBtn.OnTapped = aw.handleInstallSingboxConfig
 	aw.UI.UninstallSingBoxBtn.OnTapped = aw.handleUninstallSingbox
+
+	aw.UI.ConfigFileBtn.OnTapped = aw.handleConfigSelect
+	aw.UI.ConfigInstallFileBtn.OnTapped = aw.handleInstallSingboxConfig
+
+	aw.UI.OutboundsCheckButton.OnTapped = aw.handleOutboundsCheck
+	aw.UI.OutboundsApplyButton.OnTapped = aw.handleOutboundsApply
+
 	aw.UI.StartSingBoxBtn.OnTapped = aw.handleStartSingBox
 	aw.UI.StopSingBoxBtn.OnTapped = aw.handleStopSingBox
 	aw.UI.RestartSingBoxBtn.OnTapped = aw.handleRestartSingBox
@@ -80,7 +87,10 @@ func (aw *AppWindow) setupUI() {
 		if r.Inited == 0 {
 			aw.LogWrite("Please setup router setup first time.")
 		}
-		aw.UI.SSHPasswordInput.SetText(aw.AuthClient.CalcPasswd(r.ID))
+		sshPass := aw.AuthClient.CalcPasswd(r.ID)
+		aw.UI.SSHPasswordInput.SetText(sshPass)
+
+		aw.SSHClient = router.NewSSHManager(aw, aw, sshPass)
 
 		imageData, err := embedded.GetRouterImage(r.Hardware)
 		if err != nil {
@@ -124,8 +134,7 @@ func (aw *AppWindow) handleConfigSelect() {
 }
 
 func (aw *AppWindow) handleSSHEnablePermanent() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.EnableSSHPermanent(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
+	aw.SSHClient.EnableSSHPermanent(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
 }
 
 func (aw *AppWindow) handleTelegramLogin() {
@@ -158,95 +167,102 @@ func (aw *AppWindow) handleDeepLink(link string) {
 }
 
 func (aw *AppWindow) handleInstallSingbox() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.InstallSingBox(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
+	aw.SSHClient.InstallSingBox(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
 }
 
 func (aw *AppWindow) handleUninstallSingbox() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.UninstallSingBox(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
+	aw.SSHClient.UninstallSingBox(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
 }
 
 func (aw *AppWindow) handleInstallSingboxConfig() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.InstallSingBoxConfig(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, aw.UI.SingboxConfigInput.Text)
+	aw.SSHClient.InstallSingBoxConfig(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, aw.UI.SingboxConfigInput.Text, false)
+}
+
+func (aw *AppWindow) handleOutboundsCheck() {
+	config := aw.ConfigManager
+	if config.OutboundsCheck(aw.UI.OutboundsInput.Text) {
+		aw.LogWrite("Check successful!")
+		aw.UI.OutboundsApplyButton.Enable()
+		return
+	}
+	aw.LogWrite("Check failed!")
+	aw.UI.OutboundsApplyButton.Enable()
+}
+
+func (aw *AppWindow) handleOutboundsApply() {
+	fullSingBoxConfig, err := aw.SSHClient.ReadRemoteFile("/data/sing-box/config.json", aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
+	if err != nil {
+		aw.LogWrite("Error reading remote file: " + err.Error())
+		return
+	}
+	newConfig, err := aw.ConfigManager.ApplyOutbounds(fullSingBoxConfig.Bytes(), aw.UI.OutboundsInput.Text)
+	if err != nil {
+		aw.LogWrite("Error applying outbounds: " + err.Error())
+		return
+	}
+	aw.SSHClient.InstallSingBoxConfig(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, newConfig, true)
 }
 
 func (aw *AppWindow) handleSingboxEnablePermanent() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.EnableSingboxPermanent(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
+	aw.SSHClient.EnableSingboxPermanent(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
 }
 
 func (aw *AppWindow) handleInstallDnsBoxPermanent() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.EnableDnsBoxPermanent(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
+	aw.SSHClient.EnableDnsBoxPermanent(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
 }
 
 func (aw *AppWindow) handleStartSingBox() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/sing-box", "start")
+	aw.SSHClient.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/sing-box", "start")
 }
 
 func (aw *AppWindow) handleStopSingBox() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/sing-box", "stop")
+	aw.SSHClient.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/sing-box", "stop")
 }
 
 func (aw *AppWindow) handleRestartSingBox() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/sing-box", "restart")
+	aw.SSHClient.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/sing-box", "restart")
 }
 
 func (aw *AppWindow) handleInstallDnsBox() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.InstallDnsBox(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
-	SSHManager.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/dnsmasq", "restart")
+	aw.SSHClient.InstallDnsBox(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
+	aw.SSHClient.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/dnsmasq", "restart")
 }
 
 func (aw *AppWindow) handleUninstallDnsBox() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.UninstallDnsBox(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
-	SSHManager.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/dnsmasq", "restart")
+	aw.SSHClient.UninstallDnsBox(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
+	aw.SSHClient.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/dnsmasq", "restart")
 }
 
 func (aw *AppWindow) handleStartDnsBox() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/dns-box", "start")
+	aw.SSHClient.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/dns-box", "start")
 }
 
 func (aw *AppWindow) handleStopDnsBox() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/dns-box", "stop")
+	aw.SSHClient.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/dns-box", "stop")
 }
 
 func (aw *AppWindow) handleRestartDnsBox() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/dns-box", "restart")
+	aw.SSHClient.ServiceOps(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, "/etc/init.d/dns-box", "restart")
 }
 
 func (aw *AppWindow) handleFirewallPatchInstall() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.FirewallPatchInstall(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
+	aw.SSHClient.FirewallPatchInstall(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
 }
 
 func (aw *AppWindow) handleFirewallPatchUninstall() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.FirewallPatchUninstall(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
+	aw.SSHClient.FirewallPatchUninstall(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
 }
 
 func (aw *AppWindow) handleFirewallReload() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.FirewallReload(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
+	aw.SSHClient.FirewallReload(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
 }
 
 func (aw *AppWindow) handleVLAN() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.ConfigureVLAN(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, aw.UI.VlanIdEntry.Text)
+	aw.SSHClient.ConfigureVLAN(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text, aw.UI.VlanIdEntry.Text)
 }
 
 func (aw *AppWindow) handleUART() {
-	SSHManager := router.NewSSHManager(aw, aw)
-	SSHManager.ConfigureUART(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
+	aw.SSHClient.ConfigureUART(aw.UI.IPInput.Text, aw.UI.SSHPasswordInput.Text)
 }
 
 func (aw *AppWindow) handleReboot() {

@@ -18,6 +18,9 @@ type Components struct {
 	SSHEnabled                *widget.Entry
 	VlanIdEntry               *widget.Entry
 	SingboxConfigInput        *widget.Entry
+	OutboundsInput            *widget.Entry
+	OutboundsCheckButton      *widget.Button
+	OutboundsApplyButton      *widget.Button
 	SSHLoginButton            *widget.Button
 	SSHEnableButton           *widget.Button
 	SSHEnablePermanentButton  *widget.Button
@@ -62,6 +65,7 @@ func NewComponents() *Components {
 		SSHEnabled:                widget.NewEntry(),
 		VlanIdEntry:               widget.NewEntry(),
 		SingboxConfigInput:        widget.NewEntry(),
+		OutboundsInput:            widget.NewEntry(),
 		SSHLoginButton:            widget.NewButton("Get STOK", nil),
 		SSHEnableButton:           widget.NewButton("Enable SSH", nil),
 		SSHEnablePermanentButton:  widget.NewButton("Enable SSH permanently", nil),
@@ -70,6 +74,8 @@ func NewComponents() *Components {
 		UninstallSingBoxBtn:       widget.NewButton("Uninstall Sing-box", nil),
 		ConfigFileBtn:             widget.NewButton("      Choose Sing-box config      ", nil),
 		ConfigInstallFileBtn:      widget.NewButton("    Install Sing-box config file    ", nil),
+		OutboundsCheckButton:      widget.NewButton("   Check Outbounds correctly   ", nil),
+		OutboundsApplyButton:      widget.NewButton("    Apply Outbounds to config   ", nil),
 		StartSingBoxBtn:           widget.NewButton("Start SingBox", nil),
 		StopSingBoxBtn:            widget.NewButton("Stop SingBox", nil),
 		RestartSingBoxBtn:         widget.NewButton("Restart SingBox", nil),
@@ -98,6 +104,16 @@ func NewComponents() *Components {
 	c.RouterImage.SetMinSize(fyne.NewSize(75, 75))
 	c.RouterImage.FillMode = canvas.ImageFillContain
 	c.RouterImage.Hide()
+	c.OutboundsApplyButton.Disable()
+	c.OutboundsCheckButton.Disable()
+
+	c.OutboundsInput.OnChanged = func(s string) {
+		if s != "" {
+			c.OutboundsCheckButton.Enable()
+		} else {
+			c.OutboundsCheckButton.Disable()
+		}
+	}
 
 	c.LogScroll.SetMinSize(fyne.NewSize(600, 400))
 
@@ -176,8 +192,9 @@ func (c *Components) BuildUI() fyne.CanvasObject {
 		c.Spacer,
 		widget.NewLabel("SSH Actions:"), sshButtons,
 		c.Spacer,
-		widget.NewLabel("SingBox Install / Uninstall:"), singboxInstallButtons,
+		widget.NewLabel("SingBox Install / Uninstall / Configure:"), singboxInstallButtons,
 		container.NewBorder(nil, nil, c.ConfigFileBtn, c.ConfigInstallFileBtn, c.SingboxConfigInput),
+		container.NewBorder(nil, nil, c.OutboundsCheckButton, c.OutboundsApplyButton, c.OutboundsInput),
 		singboxControlButtons,
 		c.Spacer,
 		widget.NewLabel("DNSBox Control / Install:"), dnsboxInstallButtons, dnsboxControlButtons,

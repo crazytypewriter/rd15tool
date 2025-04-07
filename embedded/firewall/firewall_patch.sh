@@ -19,6 +19,15 @@ echo '#!/bin/sh
               iptables -I FORWARD -m mark --mark 0x2 -j ACCEPT
           iptables -t nat -C POSTROUTING -o tun0 -j SNAT --to-source 172.16.250.1 2>/dev/null || \
               iptables -t nat -A POSTROUTING -o tun0 -j SNAT --to-source 172.16.250.1
+
+          #ip -6 rule list | grep -q "fwmark 0x2 lookup vpn" || ip -6 rule add fwmark 0x2 lookup vpn
+
+          ip6tables -t mangle -C OUTPUT -m set --match-set vpn_domains6  dst -j MARK --set-mark 0x2 2>/dev/null || \
+              ip6tables -t mangle -A OUTPUT -m set --match-set vpn_domains6 dst -j MARK --set-mark 0x2
+          ip6tables -t mangle -C PREROUTING -m set --match-set vpn_domains dst -j MARK --set-mark 0x2 2>/dev/null || \
+              ip6tables -t mangle -A PREROUTING -m set --match-set vpn_domains dst -j MARK --set-mark 0x2
+          ip6tables -t mangle -C PREROUTING -m set --match-set vpn_domains6 dst -j MARK --set-mark 0x2 2>/dev/null || \
+              ip6tables -t mangle -A PREROUTING -m set --match-set vpn_domains6 dst -j MARK --set-mark 0x2
           return
       }
 

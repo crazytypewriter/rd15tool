@@ -7,5 +7,6 @@ import (
 
 func main() {
 	myApp := app.New()
+	myApp.Settings().SetTheme(&rdapp.MobileTheme{})
 	rdapp.NewAppWindow(myApp).Window.ShowAndRun()
 }

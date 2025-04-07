@@ -44,12 +44,17 @@ var RD15Image []byte
 //go:embed img/be5000.png
 var RD16Image []byte
 
+//go:embed img/be6500.png
+var RN02Image []byte
+
 func GetRouterImage(model string) ([]byte, error) {
 	switch model {
 	case "RD15":
 		return RD15Image, nil
 	case "RD16":
 		return RD16Image, nil
+	case "RN02":
+		return RN02Image, nil
 	default:
 
 		return nil, fmt.Errorf("image for model %s does not exist", model)
