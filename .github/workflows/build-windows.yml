@@ -14,6 +14,7 @@ jobs:
       packages: read
 
     env:
+      GOTOOLCHAIN: auto
       GOPRIVATE: github.com/crazytypewriter/sing-lib
 
     steps:
@@ -35,10 +36,6 @@ jobs:
       - name: Configure Git for SSH
         run: |
           git config --global url."git@github.com:".insteadOf "https://github.com/"
-
-      - name: Clear Go module cache
-        run: |
-          go clean -modcache
 
       - name: Vendor dependencies
         run: |
