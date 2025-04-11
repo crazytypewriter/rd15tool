@@ -50,6 +50,7 @@ jobs:
           go install github.com/fyne-io/fyne-cross@latest
 
       - name: Build Windows App
+        if: success()
         run: |
           fyne-cross windows -arch=amd64 -app-id=io.rd15.tool
 
