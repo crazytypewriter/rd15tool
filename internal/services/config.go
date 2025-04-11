@@ -32,6 +32,9 @@ func (cm *ConfigManager) OutboundsCheck(text string) bool {
 func (cm *ConfigManager) ApplyOutbounds(config []byte, outbounds string) (string, error) {
 	var opts option.Options
 	err := opts.UnmarshalJSON(config)
+	if err != nil {
+		return "", err
+	}
 
 	decodeOutbounds, _ := common.DecodeBase64IfNeeded(outbounds)
 
@@ -40,17 +43,41 @@ func (cm *ConfigManager) ApplyOutbounds(config []byte, outbounds string) (string
 		return "", err
 	}
 
-	opts.Outbounds = append(opts.Outbounds, convertedOutbounds...)
+	newOutbounds := make([]option.Outbound, 0, len(convertedOutbounds)+len(opts.Outbounds))
+	newOutbounds = append(newOutbounds, convertedOutbounds...)
+	newOutbounds = append(newOutbounds, opts.Outbounds...)
+	opts.Outbounds = newOutbounds
 
 	for _, convertedOutbound := range convertedOutbounds {
 		for i := range opts.Outbounds {
-			if opts.Outbounds[i].Type == "selector" {
-				opts.Outbounds[i].SelectorOptions.Outbounds = append(
-					opts.Outbounds[i].SelectorOptions.Outbounds, convertedOutbound.Tag)
-			} else if opts.Outbounds[i].Type == "urltest" {
-				opts.Outbounds[i].URLTestOptions.Outbounds = append(
-					opts.Outbounds[i].URLTestOptions.Outbounds, convertedOutbound.Tag)
+			switch opts.Outbounds[i].Type {
+			case "selector":
+				newSelectorOutbounds := make([]string, 0, len(opts.Outbounds[i].SelectorOptions.Outbounds)+1)
+				newSelectorOutbounds = append(newSelectorOutbounds, convertedOutbound.Tag)
+				newSelectorOutbounds = append(newSelectorOutbounds, opts.Outbounds[i].SelectorOptions.Outbounds...)
+				opts.Outbounds[i].SelectorOptions.Outbounds = newSelectorOutbounds
+			case "urltest":
+				newURLTestOutbounds := make([]string, 0, len(opts.Outbounds[i].URLTestOptions.Outbounds)+1)
+				newURLTestOutbounds = append(newURLTestOutbounds, convertedOutbound.Tag)
+				newURLTestOutbounds = append(newURLTestOutbounds, opts.Outbounds[i].URLTestOptions.Outbounds...)
+				opts.Outbounds[i].URLTestOptions.Outbounds = newURLTestOutbounds
 			}
+		}
+	}
+
+	filtered := opts.Outbounds[:0]
+	for _, outbound := range opts.Outbounds {
+		if outbound.Tag != "test" {
+			filtered = append(filtered, outbound)
+		}
+	}
+	opts.Outbounds = filtered
+
+	for i := range opts.Outbounds {
+		if opts.Outbounds[i].Type == "selector" {
+			opts.Outbounds[i].SelectorOptions.Outbounds = filterTags(opts.Outbounds[i].SelectorOptions.Outbounds)
+		} else if opts.Outbounds[i].Type == "urltest" {
+			opts.Outbounds[i].URLTestOptions.Outbounds = filterTags(opts.Outbounds[i].URLTestOptions.Outbounds)
 		}
 	}
 
@@ -59,4 +86,14 @@ func (cm *ConfigManager) ApplyOutbounds(config []byte, outbounds string) (string
 		return "", err
 	}
 	return string(data), nil
+}
+
+func filterTags(tags []string) []string {
+	filtered := tags[:0]
+	for _, tag := range tags {
+		if tag != "test" {
+			filtered = append(filtered, tag)
+		}
+	}
+	return filtered
 }

@@ -17,28 +17,30 @@ import (
 )
 
 type AppWindow struct {
-	Window        fyne.Window
-	UI            *gui.Components
-	SSHClient     *router.SSHManager
-	Services      *services.NetworkService
-	AuthClient    *router.AuthClient
-	ConfigManager *services.ConfigManager
+	Window          fyne.Window
+	UI              *gui.Components
+	SSHClient       *router.SSHManager
+	Services        *services.NetworkService
+	AuthClient      *router.AuthClient
+	ConfigManager   *services.ConfigManager
+	ClashAPIService *services.WebSocketGraph
 }
 
 func NewAppWindow(app fyne.App) *AppWindow {
 	aw := &AppWindow{
-		Window:        app.NewWindow("RD15 Tool"),
-		UI:            gui.NewComponents(),
-		Services:      services.NewNetworkService(),
-		AuthClient:    router.NewAuthClient(nil),
-		ConfigManager: services.NewConfigManager(),
+		Window:          app.NewWindow("RD15 Tool"),
+		UI:              gui.NewComponents(),
+		Services:        services.NewNetworkService(),
+		AuthClient:      router.NewAuthClient(nil),
+		ConfigManager:   services.NewConfigManager(),
+		ClashAPIService: services.NewClashAPIService(url.URL{Scheme: "ws", Host: "192.168.31.1:16756", Path: "/traffic", RawQuery: "token=gGY-Uyys7fbgbns"}),
 	}
 	aw.setupUI()
 	return aw
 }
 
 func (aw *AppWindow) setupUI() {
-	aw.Window.Resize(fyne.NewSize(800, 1200))
+	aw.Window.Resize(fyne.NewSize(800, 800))
 	aw.Window.CenterOnScreen()
 	aw.Window.SetContent(aw.UI.BuildUI())
 
@@ -77,6 +79,8 @@ func (aw *AppWindow) setupUI() {
 	aw.UI.UARTButton.OnTapped = aw.handleUART
 	aw.UI.RebootButton.OnTapped = aw.handleReboot
 
+	//aw.UI.CopyFilesButton.OnTapped = aw.handleCopyFiles
+
 	go aw.Services.ScanSubnet(aw.UI.IPInput)
 	aw.UI.IPInput.OnChanged = func(s string) {
 		authClient := router.NewAuthClient(aw)
@@ -101,6 +105,8 @@ func (aw *AppWindow) setupUI() {
 		aw.UI.RouterImage.Refresh()
 		aw.UI.RouterImage.Show()
 	}
+
+	aw.ClashAPIService.StartMonitoring(aw.UI.TrafficGraphContainer)
 }
 
 func (aw *AppWindow) handleSSHLogin() {
@@ -164,6 +170,10 @@ func (aw *AppWindow) handleDeepLink(link string) {
 		return
 	}
 	aw.LogWrite("Получен ключ: " + u.String())
+}
+
+func (aw *AppWindow) handleCopyFiles() {
+	//aw.SSHClient.InstallSingBox(aw.UI.CopyFilesInput.Text())
 }
 
 func (aw *AppWindow) handleInstallSingbox() {

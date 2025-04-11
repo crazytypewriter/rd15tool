@@ -54,7 +54,7 @@
       "type": "selector",
       "tag": "mainSelector",
       "outbounds": [
-        "freedom",
+        "test",
         "direct",
         "mainUrlTest"
       ]
@@ -63,14 +63,14 @@
       "type": "urltest",
       "tag": "mainUrlTest",
       "outbounds": [
-        "freedom",
+        "test",
         "direct"
       ],
       "interval": "1m0s"
     },
     {
       "type": "vless",
-      "tag": "freedom",
+      "tag": "test",
       "server": "YOURSERVERIP",
       "server_port": 443,
       "uuid": "id137917224",

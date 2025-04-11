@@ -50,6 +50,17 @@ type Components struct {
 	LogContent                string
 	Spacer                    *widget.Separator
 	RouterImage               *canvas.Image
+	deviceTabContent          fyne.CanvasObject
+	singboxTabContent         fyne.CanvasObject
+	dnsboxTabContent          fyne.CanvasObject
+	firewallTabContent        fyne.CanvasObject
+	vlanTabContent            fyne.CanvasObject // New tab content
+	logTabContent             fyne.CanvasObject
+	tabbedContainer           *container.AppTabs
+
+	TrafficGraphContainer *fyne.Container
+	//CopyFilesInput        *widget.Entry
+	//CopyFilesButton       *widget.Button
 }
 
 func NewComponents() *Components {
@@ -96,6 +107,7 @@ func NewComponents() *Components {
 		LogScroll:                 logScroll,
 		Spacer:                    widget.NewSeparator(),
 		RouterImage:               canvas.NewImageFromResource(nil),
+		TrafficGraphContainer:     container.NewWithoutLayout(),
 	}
 
 	c.StokInput.Disable()
@@ -117,10 +129,15 @@ func NewComponents() *Components {
 
 	c.LogScroll.SetMinSize(fyne.NewSize(600, 400))
 
+	c.deviceTabContent = c.buildDeviceTab()
+	c.singboxTabContent = c.buildSingBoxTab()
+	c.dnsboxTabContent = c.buildDnsBoxTab()
+	c.firewallTabContent = c.buildFirewallTab()
+	c.vlanTabContent = c.buildVLANTab() // Build VLAN tab content
 	return c
 }
 
-func (c *Components) BuildUI() fyne.CanvasObject {
+func (c *Components) buildDeviceTab() fyne.CanvasObject {
 	passwordContainer := container.NewHBox(
 		container.NewVBox(
 			widget.NewLabel("Password:                                                       "),
@@ -142,16 +159,31 @@ func (c *Components) BuildUI() fyne.CanvasObject {
 			clip.SetContent(c.SSHPasswordInput.Text)
 		}), c.SSHPasswordInput)
 
-	vlanContainer := container.NewHBox(
-		c.VlanIdEntry,
-		c.VLANButton,
-		c.UARTButton,
-		c.RebootButton,
-	)
 	sshButtons := container.NewGridWithColumns(3,
 		c.SSHLoginButton,
 		c.SSHEnableButton,
 		c.SSHEnablePermanentButton,
+	)
+
+	sshLog := container.New(layout.NewVBoxLayout(),
+		c.LogScroll,
+	)
+
+	return container.NewVBox(
+		widget.NewLabel("IP Address:"), c.IPInput,
+		passwordContainer,
+		widget.NewLabel("Stok (get automatic):"), stokBorder,
+		widget.NewLabel("SSH Password (calculated automatic):"), sshPassBorder,
+		c.Spacer,
+		widget.NewLabel("SSH Actions:"), sshButtons,
+		// VLAN/UART and Reboot buttons are moved to the VLAN tab
+		sshLog,
+	)
+}
+
+func (c *Components) buildSingBoxTab() fyne.CanvasObject {
+	singboxChart := container.NewVBox(
+		c.TrafficGraphContainer,
 	)
 
 	singboxInstallButtons := container.NewGridWithColumns(3,
@@ -167,6 +199,32 @@ func (c *Components) BuildUI() fyne.CanvasObject {
 		c.RestartSingBoxBtn,
 	)
 
+	singboxLog := container.New(layout.NewVBoxLayout(),
+		layout.NewSpacer(),
+		layout.NewSpacer(),
+		layout.NewSpacer(),
+		c.LogScroll,
+	)
+
+	return container.NewVBox(
+
+		widget.NewLabel("SingBox Install / Uninstall / Configure:"), singboxInstallButtons,
+		container.NewBorder(nil, nil, c.ConfigFileBtn, c.ConfigInstallFileBtn, c.SingboxConfigInput),
+		container.NewBorder(nil, nil, c.OutboundsCheckButton, c.OutboundsApplyButton, c.OutboundsInput),
+		singboxControlButtons,
+		layout.NewSpacer(),
+		singboxChart,
+		layout.NewSpacer(),
+		layout.NewSpacer(),
+		layout.NewSpacer(),
+		layout.NewSpacer(),
+		layout.NewSpacer(),
+
+		singboxLog,
+	)
+}
+
+func (c *Components) buildDnsBoxTab() fyne.CanvasObject {
 	dnsboxInstallButtons := container.NewGridWithColumns(3,
 		c.InstallDnsBoxBtn,
 		c.InstallPermDnsBoxBtn,
@@ -178,30 +236,68 @@ func (c *Components) BuildUI() fyne.CanvasObject {
 		c.RestartDnsBoxBtn,
 	)
 
+	dnsboxLog := container.New(layout.NewVBoxLayout(),
+		c.LogScroll,
+	)
+
+	return container.NewVBox(
+		widget.NewLabel("DNSBox Control / Install:"), dnsboxInstallButtons, dnsboxControlButtons,
+		dnsboxLog,
+	)
+}
+
+func (c *Components) buildFirewallTab() fyne.CanvasObject {
 	firewallPatchInstallBtn := container.NewGridWithColumns(3,
 		c.FirewallPatchInstallBtn,
 		c.FirewallPatchUninstallBtn,
 		c.FirewallReloadBtn,
 	)
 
-	return container.NewVBox(
-		widget.NewLabel("IP Address:"), c.IPInput,
-		passwordContainer,
-		widget.NewLabel("Stok (get automatic):"), stokBorder,
-		widget.NewLabel("SSH Password (calculated automatic):"), sshPassBorder,
-		c.Spacer,
-		widget.NewLabel("SSH Actions:"), sshButtons,
-		c.Spacer,
-		widget.NewLabel("SingBox Install / Uninstall / Configure:"), singboxInstallButtons,
-		container.NewBorder(nil, nil, c.ConfigFileBtn, c.ConfigInstallFileBtn, c.SingboxConfigInput),
-		container.NewBorder(nil, nil, c.OutboundsCheckButton, c.OutboundsApplyButton, c.OutboundsInput),
-		singboxControlButtons,
-		c.Spacer,
-		widget.NewLabel("DNSBox Control / Install:"), dnsboxInstallButtons, dnsboxControlButtons,
-		c.Spacer,
-		widget.NewLabel("Firewall Control / Install:"), firewallPatchInstallBtn,
-		widget.NewLabel("VLAN/UART:"), vlanContainer,
-		c.Spacer,
+	firewallLog := container.New(layout.NewVBoxLayout(),
 		c.LogScroll,
 	)
+
+	return container.NewVBox(
+		widget.NewLabel("Firewall Control / Install:"), firewallPatchInstallBtn,
+		firewallLog,
+	)
+}
+
+func (c *Components) buildVLANTab() fyne.CanvasObject {
+	vlanContainer := container.NewHBox(
+		widget.NewLabel("VLAN ID:"),
+		c.VlanIdEntry,
+		c.VLANButton,
+	)
+	uartRebootContainer := container.NewHBox(
+		c.UARTButton,
+		c.RebootButton,
+		layout.NewSpacer(), // Add spacer to push buttons to the left if needed
+	)
+
+	uartRebootLog := container.New(layout.NewVBoxLayout(),
+		c.LogScroll,
+	)
+
+	return container.NewVBox(
+		widget.NewLabel("VLAN Configuration:"),
+		vlanContainer,
+		widget.NewLabel("UART / Reboot:"),
+		uartRebootContainer,
+		uartRebootLog,
+	)
+}
+
+func (c *Components) BuildUI() fyne.CanvasObject {
+	c.tabbedContainer = container.NewAppTabs(
+		container.NewTabItem("Device  ", c.deviceTabContent),
+		container.NewTabItem("VLAN", c.vlanTabContent),
+		container.NewTabItem("Sing-box", c.singboxTabContent),
+		container.NewTabItem("DNSBox", c.dnsboxTabContent),
+		container.NewTabItem("Firewall", c.firewallTabContent),
+	)
+
+	c.tabbedContainer.SetTabLocation(container.TabLocationLeading)
+
+	return c.tabbedContainer
 }
