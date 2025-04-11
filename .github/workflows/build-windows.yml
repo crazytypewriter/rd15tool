@@ -49,7 +49,7 @@ jobs:
       - name: Build Windows App
         if: success()
         run: |
-          fyne-cross windows -arch=amd64 -app-id=io.rd15.tool
+          GOFLAGS='' fyne-cross windows -arch=amd64 -app-id=io.rd15.tool
 
       - name: Install GitHub CLI
         if: success()
