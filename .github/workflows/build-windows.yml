@@ -54,12 +54,15 @@ jobs:
           fyne-cross windows -arch=amd64 -app-id=io.rd15.tool
 
       - name: Install GitHub CLI
+        if: success()
         run: |
           sudo apt-get install -y gh
 
       - name: Authenticate GitHub CLI
+        if: success()
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+          gh auth status
 
       - name: Get Latest Release Tag and Increment
         run: |
