@@ -19,11 +19,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Update SSH client
-        run: sudo apt-get update && sudo apt-get install --reinstall -y openssh-client
-
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
