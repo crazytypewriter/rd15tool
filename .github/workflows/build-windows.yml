@@ -2,8 +2,9 @@ name: Build and Release Fyne App
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   build-and-release:
