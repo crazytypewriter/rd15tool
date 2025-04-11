@@ -36,6 +36,9 @@ jobs:
         run: |
           git config --global url."git@github.com:".insteadOf "https://github.com/"
 
+      - name: Clear Go module cache
+        run: |
+          go clean -modcache
 
       - name: Vendor dependencies
         run: |
@@ -49,7 +52,7 @@ jobs:
       - name: Build Windows App
         if: success()
         run: |
-          GOFLAGS='' fyne-cross windows -arch=amd64 -app-id=io.rd15.tool
+          fyne-cross windows -arch=amd64 -app-id=io.rd15.tool
 
       - name: Install GitHub CLI
         if: success()
