@@ -25,9 +25,11 @@ jobs:
 
 
       - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-            go-version: '>=1.24.2'
+        steps:
+          uses: actions/setup-go@v5
+          with:
+            go-version-file: '/home/runner/work/rd15tool/rd15tool/go.mod'
+          run: go version
 
       - name: Add SSH key
         run: |
