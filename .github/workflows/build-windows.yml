@@ -11,10 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
+      packages: write
 
     env:
-      GOTOOLCHAIN: auto
       GOPRIVATE: github.com/crazytypewriter/sing-lib
 
     steps:
