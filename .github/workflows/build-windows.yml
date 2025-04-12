@@ -100,7 +100,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: sing-box
-          path: embedded/singbox/sing-box
+          path: ./sing-box
 
 
       - name: Install fyne-cross
