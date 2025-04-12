@@ -33,7 +33,7 @@ jobs:
         run: |
           GOOS=linux GOARCH=arm GOMIPS=softfloat go build -v -trimpath -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=${{ env.SING_BOX_TAG }}' -s -w -buildid=" -tags with_wireguard,with_clash_api,with_v2ray_api,with_utls -o sing-box ./cmd/sing-box
 
-      - name: Build sing-box
+      - name: Pack sing-box
         working-directory: sing-box
         run: |
           upx --best --lzma  ./sing-box
