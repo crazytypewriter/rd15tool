@@ -246,8 +246,6 @@ jobs:
           COMMIT_HASH=$(git rev-parse --short HEAD)
           gh release create "$NEW_TAG" \
             artifacts/windows-amd64/rd15tool.exe.zip \
-            artifacts/windows-amd64/embedded/singbox/sing-box \
             artifacts/linux-amd64/rd15tool.tar.xz \
-            artifacts/linux-amd64/embedded/singbox/sing-box \
             --title "$NEW_TAG" \
             --notes "Release created from commit $COMMIT_HASH. Includes Windows and Linux builds with sing-box v${{ env.SING_BOX_TAG }}."
