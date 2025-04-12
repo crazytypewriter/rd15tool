@@ -102,11 +102,24 @@ jobs:
         run: |
           go install github.com/fyne-io/fyne-cross@latest
 
-      - name: Download sing-box artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: sing-box
-          path: sing-box
+      - name: Download sing-box artifact with retries
+        run: |
+          for attempt in {1..5}; do
+            echo "Attempt $attempt: Downloading sing-box artifact..."
+            gh run download --name sing-box --dir sing-box || {
+              echo "Download failed, waiting 5 seconds..."
+              sleep 5
+              continue
+            }
+            if [ -f sing-box/sing-box ]; then
+              echo "sing-box artifact downloaded successfully"
+              exit 0
+            fi
+          done
+          echo "Error: Failed to download sing-box artifact after 3 attempts"
+          exit 1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Copy sing-box to embedded
         run: |
