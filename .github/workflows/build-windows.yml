@@ -108,6 +108,12 @@ jobs:
           name: sing-box
           path: sing-box/
 
+      - name: Copy sing-box debug
+        run: |
+          ls -lia embedded/singbox
+          ls -lia  sing-box/sing-box
+          ls -lia ./
+
       - name: Copy sing-box to embedded
         run: |
           mkdir -p embedded/singbox
