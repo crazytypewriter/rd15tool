@@ -39,7 +39,6 @@ jobs:
       - name: Pack dns-box
         working-directory: dns-box
         run: |
-          cd dns-box
           upx --best --lzma  ./dns-box
 
       - name: Upload dns-box artifact
