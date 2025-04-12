@@ -12,8 +12,6 @@ jobs:
     steps:
       - name: Set up Go
         uses: actions/setup-go@v5
-        with:
-            go-version-file: '1.23.5'
 
       - name: Get latest sing-box release tag
         id: sing-box-tag
