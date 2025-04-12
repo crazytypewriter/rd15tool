@@ -19,6 +19,11 @@ jobs:
           repository: crazytypewriter/dns-box
           path: dns-box
 
+      - name: Initialize and configure go.mod
+        run: |
+          go mod init github.com/crazytypewriter/dns-box
+          go mod edit -go=1.23.5
+
       - name: Vendor dependencies
         run: |
           go mod tidy
@@ -127,7 +132,8 @@ jobs:
 
       - name: Vendor dependencies
         run: |
-          go mod download
+          go mod tidy
+          go mod vendor
 
       - name: Install fyne-cross
         run: |
