@@ -107,6 +107,7 @@ jobs:
           timeout_seconds: 5
           max_attempts: 5
           command: >-
+            echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
             gh run download ${{ github.run_id }} --name sing-box --dir sing-box
 
       - name: Copy sing-box to embedded
