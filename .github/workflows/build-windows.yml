@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  build-and-release:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -40,8 +40,11 @@ jobs:
           key: ${{ runner.os }}-docker-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-docker-
-            
 
+  generate-go-mod:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
       - name: Generate fresh go.mod
         run: |
           go mod init github.com/crazytypewriter/rd15tool
@@ -50,12 +53,28 @@ jobs:
         run: |
           go mod edit -go=1.23.5
 
+  setup-go:
+    runs-on: ubuntu-latest
+    needs: generate-go-mod
+    steps:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: '/home/runner/work/rd15tool/rd15tool/go.mod'
           run: go version
 
+      - name: Vendor tidy dependencies
+        run: |
+          go mod tidy
+
+      - name: Vendor dependencies
+        run: |
+          go mod vendor
+
+  setup-ssh:
+    runs-on: ubuntu-latest
+    needs: setup-go
+    steps:
       - name: Add SSH key
         run: |
           mkdir -p ~/.ssh
@@ -67,34 +86,43 @@ jobs:
         run: |
           git config --global url."git@github.com:".insteadOf "https://github.com/"
 
-      - name: Vendor tidy dependencies
-        run: |
-          go mod tidy
-
-      - name: Vendor dependencies
-        run: |
-          go mod vendor
-
+  install-fyne-cross:
+    runs-on: ubuntu-latest
+    needs: setup-ssh
+    steps:
       - name: Install fyne-cross
         run: |
           go install github.com/fyne-io/fyne-cross@latest
 
+  build-windows:
+    runs-on: ubuntu-latest
+    needs: install-fyne-cross
+    steps:
       - name: Build Windows App
-        if: success()
         run: |
           fyne-cross windows -arch=amd64 -app-id=io.rd15.tool
 
+  install-gh-cli:
+    runs-on: ubuntu-latest
+    needs: build-windows
+    steps:
       - name: Install GitHub CLI
-        if: success()
         run: |
           sudo apt-get install -y gh
 
+  authenticate-gh-cli:
+    runs-on: ubuntu-latest
+    needs: install-gh-cli
+    steps:
       - name: Authenticate GitHub CLI
-        if: success()
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
           gh auth status
 
+  get-latest-release:
+    runs-on: ubuntu-latest
+    needs: authenticate-gh-cli
+    steps:
       - name: Get Latest Release Tag and Increment
         run: |
           # Fetch the latest release tag from GitHub
@@ -104,7 +132,7 @@ jobs:
           if [[ -z "$LATEST_TAG" ]]; then
             NEW_TAG="v1.0.0"
           else
-          # Extract major, minor, and patch numbers
+            # Extract major, minor, and patch numbers
             MAJOR=$(echo "$LATEST_TAG" | cut -d. -f1 | tr -d 'v')
             MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
             PATCH=$(echo "$LATEST_TAG" | cut -d. -f3)
