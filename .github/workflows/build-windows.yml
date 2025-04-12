@@ -23,6 +23,7 @@ jobs:
         run: |
           go mod init github.com/crazytypewriter/dns-box
           go mod edit -go=1.23.5
+          go mod tidy
 
       - name: Vendor dependencies
         run: |
