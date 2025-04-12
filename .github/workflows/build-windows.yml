@@ -55,7 +55,7 @@ jobs:
       - name: Build Windows App
         if: success()
         run: |
-          go envfyne-cross windows -arch=amd64 -app-id=io.rd15.tool
+          fyne-cross windows -arch=amd64 -app-id=io.rd15.tool
 
       - name: Install GitHub CLI
         if: success()
