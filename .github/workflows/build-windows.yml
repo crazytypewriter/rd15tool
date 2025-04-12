@@ -42,7 +42,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sing-box
-          path: ./sing-box
+          path: sing-box/sing-box
 
   build-and-release:
     runs-on: ubuntu-latest
@@ -102,11 +102,16 @@ jobs:
         run: |
           go install github.com/fyne-io/fyne-cross@latest
 
-      - name: Download Sing-box artifact
+      - name: Download sing-box artifact
         uses: actions/download-artifact@v4
         with:
           name: sing-box
-          path: embedded/singbox/sing-box
+          path: sing-box/
+
+      - name: Copy sing-box to embedded
+        run: |
+          mkdir -p embedded/singbox
+          cp sing-box/sing-box embedded/singbox/sing-box
 
 
       - name: Install fyne-cross
