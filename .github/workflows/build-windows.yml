@@ -42,7 +42,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sing-box
-          path: sing-box/sing-box
+          path: sing-box
 
   build-and-release:
     runs-on: ubuntu-latest
@@ -122,7 +122,7 @@ jobs:
 
       - name: Copy sing-box to embedded
         run: |
-          cp -r sing-box/sing-box embedded/singbox/sing-box
+          cp sing-box embedded/singbox/sing-box
 
       - name: Copy sing-box debug3
         run: |
