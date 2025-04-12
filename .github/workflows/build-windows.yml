@@ -15,11 +15,10 @@ jobs:
         with:
           go-version: '1.24.2'
 
-      - name: Checkout sing-box repository
+      - name: Checkout dns-box repository
         uses: actions/checkout@v4
         with:
           repository: crazytypewriter/dns-box
-          ref:
           path: dns-box
 
       - name: Initialize and configure go.mod
