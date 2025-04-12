@@ -19,9 +19,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: crazytypewriter/dns-box
+          path: dns-box
 
       - name: Initialize dependencies
         run: |
+          cd dns-box
           go mod tidy
 
       - name: Get dependencies
@@ -30,7 +32,7 @@ jobs:
       - name: Build dns-box
         working-directory: dns-box
         run: |
-          make arm-build
+          GOOS=linux GOARCH=arm GOMIPS=softfloat go build -ldflags "-s -w" -o dns-box ./cmd/dns-box/main.go
 
       - name: Pack dns-box
         working-directory: dns-box
