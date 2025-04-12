@@ -68,9 +68,12 @@ jobs:
         run: |
           git config --global url."git@github.com:".insteadOf "https://github.com/"
 
-      - name: Vendor dependencies
+      - name: Vendor tidy dependencies
         run: |
           go mod tidy
+
+      - name: Vendor dependencies
+        run: |
           go mod vendor
 
       - name: Install fyne-cross
