@@ -21,6 +21,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      # Кэширование Docker слоёв
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Cache Docker layers
+        id: cache-docker
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/docker
+          key: ${{ runner.os }}-docker-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-docker-
+            
+
       - name: Generate fresh go.mod with go 1.23
         run: |
           go mod init github.com/crazytypewriter/rd15tool
