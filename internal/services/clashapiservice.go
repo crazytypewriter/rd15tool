@@ -72,9 +72,11 @@ func (wg *WebSocketGraph) StartMonitoring(parent *fyne.Container) {
 			case <-done:
 				return
 			default:
-				wg.connectAndStream(done)
-				log.Println("Disconnected, retrying in 5 seconds...")
-				time.Sleep(5 * time.Second)
+				fyne.Do(func() {
+					wg.connectAndStream(done)
+					log.Println("Disconnected, retrying in 5 seconds...")
+					time.Sleep(5 * time.Second)
+				})
 			}
 		}
 	}()
@@ -129,7 +131,9 @@ func (wg *WebSocketGraph) connectAndStream(done chan struct{}) {
 			wg.drawBrokenCurve(wg.plot, wg.dataDown, maxVal, step, color.RGBA{R: 0, G: 0, B: 255, A: 255})
 			wg.addScale(maxVal)
 
-			wg.plot.Refresh()
+			fyne.Do(func() {
+				wg.plot.Refresh()
+			})
 		}
 	}
 }

@@ -20,6 +20,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Generate fresh go.mod with go 1.23
+        run: |
+          go mod init github.com/crazytypewriter/rd15tool
+          go mod edit -go=1.23.5
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -49,7 +55,7 @@ jobs:
       - name: Build Windows App
         if: success()
         run: |
-          fyne-cross windows -arch=amd64 -app-id=io.rd15.tool
+          go envfyne-cross windows -arch=amd64 -app-id=io.rd15.tool
 
       - name: Install GitHub CLI
         if: success()
