@@ -68,7 +68,6 @@ jobs:
         run: |
           git config --global url."git@github.com:".insteadOf "https://github.com/"
 
-
       - name: Vendor dependencies
         run: |
           go mod tidy
