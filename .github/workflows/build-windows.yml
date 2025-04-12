@@ -64,9 +64,35 @@ jobs:
         run: |
           go install github.com/fyne-io/fyne-cross@latest
 
+      - name: Get latest sing-box release tag
+        id: sing-box-tag
+        run: |
+          LATEST_SING_BOX_TAG=$(gh release list --repo SagerNet/sing-box --limit 1 --exclude-pre-releases --json tagName --jq '.[0].tagName' | tr -d 'v')
+          echo "SING_BOX_TAG=$LATEST_SING_BOX_TAG" >> $GITHUB_ENV
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout sing-box repository
+        uses: actions/checkout@v4
+        with:
+          repository: SagerNet/sing-box
+          ref: v${{ env.SING_BOX_TAG }}
+          path: sing-box
+
+      - name: Build sing-box
+        working-directory: sing-box
+        run: |
+          GOOS=linux GOARCH=arm GOMIPS=softfloat go build -v -trimpath -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=${{ env.SING_BOX_TAG }}' -s -w -buildid=" -tags with_wireguard,with_clash_api,with_v2ray_api,with_utls -o sing-box ./cmd/sing-box
+          mkdir -p ../embedded/singbox
+          cp sing-box ../embedded/singbox/sing-box    
+
       - name: Build App
         run: |
-          fyne-cross ${{ matrix.platform }} -app-id=io.rd15.tool
+          if [ "${{ matrix.platform }}" = "windows-amd64" ]; then
+            fyne-cross windows -arch=amd64 -app-id=io.rd15.tool
+          elif [ "${{ matrix.platform }}" = "linux-amd64" ]; then
+            fyne-cross linux -arch=amd64 -app-id=io.rd15.tool
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
