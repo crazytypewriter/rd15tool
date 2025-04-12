@@ -8,36 +8,37 @@ on:
 
 jobs:
   build-sing-box:
-  - name: Set up Go
-    uses: actions/setup-go@v5
-    with:
-        go-version-file: '1.23.5'
+    runs-on: ubuntu-latest
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+            go-version-file: '1.23.5'
 
-  - name: Get latest sing-box release tag
-    id: sing-box-tag
-    run: |
-      LATEST_SING_BOX_TAG=$(gh release list --repo SagerNet/sing-box --limit 1 --exclude-pre-releases --json tagName --jq '.[0].tagName' | tr -d 'v')
-      echo "SING_BOX_TAG=$LATEST_SING_BOX_TAG" >> $GITHUB_ENV
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Get latest sing-box release tag
+        id: sing-box-tag
+        run: |
+          LATEST_SING_BOX_TAG=$(gh release list --repo SagerNet/sing-box --limit 1 --exclude-pre-releases --json tagName --jq '.[0].tagName' | tr -d 'v')
+          echo "SING_BOX_TAG=$LATEST_SING_BOX_TAG" >> $GITHUB_ENV
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  - name: Checkout sing-box repository
-    uses: actions/checkout@v4
-    with:
-      repository: SagerNet/sing-box
-      ref: v${{ env.SING_BOX_TAG }}
-      path: sing-box
+      - name: Checkout sing-box repository
+        uses: actions/checkout@v4
+        with:
+          repository: SagerNet/sing-box
+          ref: v${{ env.SING_BOX_TAG }}
+          path: sing-box
 
-  - name: Build sing-box
-    working-directory: sing-box
-    run: |
-      GOOS=linux GOARCH=arm GOMIPS=softfloat go build -v -trimpath -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=${{ env.SING_BOX_TAG }}' -s -w -buildid=" -tags with_wireguard,with_clash_api,with_v2ray_api,with_utls -o sing-box ./cmd/sing-box
+      - name: Build sing-box
+        working-directory: sing-box
+        run: |
+          GOOS=linux GOARCH=arm GOMIPS=softfloat go build -v -trimpath -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=${{ env.SING_BOX_TAG }}' -s -w -buildid=" -tags with_wireguard,with_clash_api,with_v2ray_api,with_utls -o sing-box ./cmd/sing-box
 
-  - name: Upload sing-box artifact
-    uses: actions/upload-artifact@v4
-    with:
-      name: sing-box
-      path: embedded/singbox/sing-box
+      - name: Upload sing-box artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sing-box
+          path: embedded/singbox/sing-box
 
   build-and-release:
     runs-on: ubuntu-latest
