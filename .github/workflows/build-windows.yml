@@ -33,6 +33,11 @@ jobs:
         run: |
           GOOS=linux GOARCH=arm GOMIPS=softfloat go build -v -trimpath -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=${{ env.SING_BOX_TAG }}' -s -w -buildid=" -tags with_wireguard,with_clash_api,with_v2ray_api,with_utls -o sing-box ./cmd/sing-box
 
+      - name: Build sing-box
+        working-directory: sing-box
+        run: |
+          upx --best --lzma  ./sing-box
+
       - name: Upload sing-box artifact
         uses: actions/upload-artifact@v4
         with:
@@ -41,6 +46,7 @@ jobs:
 
   build-and-release:
     runs-on: ubuntu-latest
+    needs: build-sing-box
     strategy:
       matrix:
         platform: [windows-amd64, linux-amd64] # Сборка для Windows и Linux
