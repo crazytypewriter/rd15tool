@@ -19,6 +19,11 @@ jobs:
           repository: crazytypewriter/dns-box
           path: dns-box
 
+      - name: Vendor dependencies
+        run: |
+          go mod tidy
+          go mod vendor
+
       - name: Build dns-box
         working-directory: dns-box
         run: |
@@ -173,7 +178,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [build-and-release,build-sing-box]
+    needs: [build-and-release,build-sing-box,build-dns-box]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
