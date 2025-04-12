@@ -34,7 +34,6 @@ jobs:
       - name: Build dns-box
         working-directory: dns-box
         run: |
-          cd dns-box
           GOOS=linux GOARCH=arm GOMIPS=softfloat go build -ldflags "-s -w" -o dns-box ./cmd/dns-box/main.go
 
       - name: Pack dns-box
