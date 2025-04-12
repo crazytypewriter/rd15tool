@@ -19,8 +19,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: crazytypewriter/dns-box
-          ref: 'main'
-          path: dns-box
 
       - name: Initialize and configure go.mod
         run: |
