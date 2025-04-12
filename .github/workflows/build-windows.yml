@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Set up Go
         uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.2'
 
       - name: Checkout sing-box repository
         uses: actions/checkout@v4
@@ -21,8 +23,6 @@ jobs:
 
       - name: Initialize and configure go.mod
         run: |
-          go mod init github.com/crazytypewriter/dns-box
-          go mod edit -go=1.23.5
           go mod tidy
 
       - name: Vendor dependencies
