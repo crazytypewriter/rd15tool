@@ -27,16 +27,20 @@ jobs:
           go mod tidy
 
       - name: Get dependencies
-        run: go mod vendor
+        run: |
+          cd dns-box
+          go mod vendor
 
       - name: Build dns-box
         working-directory: dns-box
         run: |
+          cd dns-box
           GOOS=linux GOARCH=arm GOMIPS=softfloat go build -ldflags "-s -w" -o dns-box ./cmd/dns-box/main.go
 
       - name: Pack dns-box
         working-directory: dns-box
         run: |
+          cd dns-box
           upx --best --lzma  ./dns-box
 
       - name: Upload dns-box artifact
