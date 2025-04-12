@@ -43,9 +43,12 @@ jobs:
             ${{ runner.os }}-docker-
             
 
-      - name: Generate fresh go.mod with go 1.23
+      - name: Generate fresh go.mod
         run: |
           go mod init github.com/crazytypewriter/rd15tool
+
+      - name: Change go.mod to 1.23.5
+        run: |
           go mod edit -go=1.23.5
 
       - name: Set up Go
