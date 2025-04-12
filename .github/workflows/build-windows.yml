@@ -7,8 +7,11 @@ on:
     branches: [main]
 
 jobs:
-  prepare:
+  build-and-release:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [windows-amd64, linux-amd64] # Сборка для Windows и Linux
     env:
       GOPRIVATE: github.com/crazytypewriter/sing-lib
     steps:
@@ -34,15 +37,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-docker-
 
-      - name: Install GitHub CLI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gh
-
       - name: Initialize and configure go.mod
         run: |
           go mod init github.com/crazytypewriter/rd15tool
           go mod edit -go=1.23.5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: '/home/runner/work/rd15tool/rd15tool/go.mod'
 
       - name: Configure SSH for Git
         run: |
@@ -51,11 +54,6 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan github.com >> ~/.ssh/known_hosts
           git config --global url."git@github.com:".insteadOf "https://github.com/"
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: '/home/runner/work/rd15tool/rd15tool/go.mod'
 
       - name: Vendor dependencies
         run: |
@@ -66,97 +64,9 @@ jobs:
         run: |
           go install github.com/fyne-io/fyne-cross@latest
 
-      - name: Upload go.mod and vendor
-        uses: actions/upload-artifact@v4
-        with:
-          name: go-env
-          path: |
-            go.mod
-            go.sum
-            vendor/
-
-  build-sing-box:
-    runs-on: ubuntu-latest
-    needs: prepare
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download go.mod and vendor
-        uses: actions/download-artifact@v4
-        with:
-          name: go-env
-          path: .
-
-      - name: Install GitHub CLI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gh
-
-      - name: Get latest sing-box release tag
-        id: sing-box-tag
-        run: |
-          LATEST_SING_BOX_TAG=$(gh release list --repo SagerNet/sing-box --limit 1 --exclude-pre-releases --json tagName --jq '.[0].tagName' | tr -d 'v')
-          echo "SING_BOX_TAG=$LATEST_SING_BOX_TAG" >> $GITHUB_ENV
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Checkout sing-box repository
-        uses: actions/checkout@v4
-        with:
-          repository: SagerNet/sing-box
-          ref: v${{ env.SING_BOX_TAG }}
-          path: sing-box
-
-      - name: Build sing-box
-        working-directory: sing-box
-        run: |
-          GOOS=linux GOARCH=arm GOMIPS=softfloat go build -v -trimpath -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=${{ env.SING_BOX_TAG }}' -s -w -buildid=" -tags with_wireguard,with_clash_api,with_v2ray_api,with_utls -o sing-box ./cmd/sing-box
-          mkdir -p ../embedded/singbox
-          cp sing-box ../embedded/singbox/sing-box
-
-  build-app:
-    runs-on: ubuntu-latest
-    needs: prepare
-    strategy:
-      matrix:
-        platform: [windows-amd64, linux-amd64]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download go.mod and vendor
-        uses: actions/download-artifact@v4
-        with:
-          name: go-env
-          path: .
-
-      - name: Cache Go modules
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Cache Docker layers
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/docker
-          key: ${{ runner.os }}-docker-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-docker-
-
       - name: Build App
         run: |
-          if [ "${{ matrix.platform }}" = "windows-amd64" ]; then
-            fyne-cross windows -arch=amd64 -app-id=io.rd15.tool
-          elif [ "${{ matrix.platform }}" = "linux-amd64" ]; then
-            fyne-cross linux -arch=amd64 -app-id=io.rd15.tool
-          fi
+          fyne-cross ${{ matrix.platform }} -app-id=io.rd15.tool
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -166,23 +76,22 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [build-app, build-sing-box]
+    needs: build-and-release # Зависит от завершения сборки
     steps:
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
           name: rd15tool-windows-amd64
-          path: artifacts/windows-amd64/
+          path: fyne-cross/dist/windows-amd64/
 
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
         with:
           name: rd15tool-linux-amd64
-          path: artifacts/linux-amd64/
+          path: fyne-cross/dist/linux-amd64/
 
       - name: Install and authenticate GitHub CLI
         run: |
-          sudo apt-get update
           sudo apt-get install -y gh
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
@@ -200,8 +109,7 @@ jobs:
           fi
           COMMIT_HASH=$(git rev-parse --short HEAD)
           gh release create "$NEW_TAG" \
-            artifacts/windows-amd64/rd15tool.exe.zip \
-            artifacts/linux-amd64/rd15tool.tar.xz \
-            artifacts/sing-box/sing-box \
+            fyne-cross/dist/windows-amd64/rd15tool.exe.zip \
+            fyne-cross/dist/linux-amd64/rd15tool.tar.xz \
             --title "$NEW_TAG" \
-            --notes "Release created from commit $COMMIT_HASH. Includes Windows and Linux builds with sing-box v${{ env.SING_BOX_TAG }}."
+            --notes "Release created from commit $COMMIT_HASH. Includes Windows and Linux builds."
