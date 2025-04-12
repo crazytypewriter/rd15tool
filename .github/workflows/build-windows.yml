@@ -24,6 +24,12 @@ jobs:
 
       - name: Initialize and configure go.mod
         run: |
+          ls -lia
+      - name: Initialize and configure go.mod
+        run: |
+          ls -lia dns-box
+      - name: Initialize and configure go.mod
+        run: |
           go mod tidy
 
       - name: Get dependencies
