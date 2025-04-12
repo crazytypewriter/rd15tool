@@ -127,8 +127,7 @@ jobs:
 
       - name: Vendor dependencies
         run: |
-          go mod tidy
-          go mod vendor
+          go mod download
 
       - name: Install fyne-cross
         run: |
