@@ -88,11 +88,6 @@ jobs:
           name: go-env
           path: .
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: './go.mod'
-
       - name: Install GitHub CLI
         run: |
           sudo apt-get update
@@ -120,15 +115,9 @@ jobs:
           mkdir -p ../embedded/singbox
           cp sing-box ../embedded/singbox/sing-box
 
-      - name: Upload sing-box artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sing-box
-          path: embedded/singbox/sing-box
-
   build-app:
     runs-on: ubuntu-latest
-    needs: [prepare, build-sing-box]
+    needs: prepare
     strategy:
       matrix:
         platform: [windows-amd64, linux-amd64]
@@ -141,12 +130,6 @@ jobs:
         with:
           name: go-env
           path: .
-
-      - name: Download sing-box
-        uses: actions/download-artifact@v4
-        with:
-          name: sing-box
-          path: embedded/singbox/
 
       - name: Cache Go modules
         uses: actions/cache@v3
@@ -167,15 +150,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-docker-
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: './go.mod'
-
-      - name: Install fyne-cross
-        run: |
-          go install github.com/fyne-io/fyne-cross@latest
-
       - name: Build App
         run: |
           if [ "${{ matrix.platform }}" = "windows-amd64" ]; then
@@ -188,17 +162,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rd15tool-${{ matrix.platform }}
-          path: |
-            fyne-cross/dist/${{ matrix.platform }}/
-            embedded/singbox/sing-box
+          path: fyne-cross/dist/${{ matrix.platform }}/
 
   release:
     runs-on: ubuntu-latest
     needs: [build-app, build-sing-box]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
@@ -211,25 +180,11 @@ jobs:
           name: rd15tool-linux-amd64
           path: artifacts/linux-amd64/
 
-      - name: Download sing-box tag
-        uses: actions/download-artifact@v4
-        with:
-          name: sing-box
-          path: artifacts/sing-box/
-
       - name: Install and authenticate GitHub CLI
         run: |
           sudo apt-get update
           sudo apt-get install -y gh
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-
-      - name: Get sing-box tag
-        id: sing-box-tag
-        run: |
-          LATEST_SING_BOX_TAG=$(gh release list --repo SagerNet/sing-box --limit 1 --exclude-pre-releases --json tagName --jq '.[0].tagName' | tr -d 'v')
-          echo "SING_BOX_TAG=$LATEST_SING_BOX_TAG" >> $GITHUB_ENV
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Release
         run: |
@@ -247,5 +202,6 @@ jobs:
           gh release create "$NEW_TAG" \
             artifacts/windows-amd64/rd15tool.exe.zip \
             artifacts/linux-amd64/rd15tool.tar.xz \
+            artifacts/sing-box/sing-box \
             --title "$NEW_TAG" \
             --notes "Release created from commit $COMMIT_HASH. Includes Windows and Linux builds with sing-box v${{ env.SING_BOX_TAG }}."
