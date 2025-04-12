@@ -26,8 +26,7 @@ jobs:
 
       - name: Vendor dependencies
         run: |
-          go mod tidy
-          go mod vendor
+          go mod download
 
       - name: Build dns-box
         working-directory: dns-box
@@ -162,8 +161,6 @@ jobs:
           max_attempts: 10
           command: >-
             gh run download ${{ github.run_id }} --name sing-box --dir sing-box
-
-
 
       - name: Copy sing-box to embedded
         run: |
