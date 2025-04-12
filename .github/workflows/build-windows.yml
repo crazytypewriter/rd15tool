@@ -7,6 +7,34 @@ on:
     branches: [main]
 
 jobs:
+  build-dns-box:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v5
+
+      - name: Checkout sing-box repository
+        uses: actions/checkout@v4
+        with:
+          repository: crazytypewriter/dns-box
+          path: dns-box
+
+      - name: Build dns-box
+        working-directory: dns-box
+        run: |
+          GOOS=linux GOARCH=arm GOMIPS=softfloat go build  -ldflags "-s -w" -o dns-box ./cmd/dns-box/main.go
+
+      - name: Pack dns-box
+        working-directory: dns-box
+        run: |
+          upx --best --lzma  ./dns-box
+
+      - name: Upload dns-box artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dns-box
+          path: dns-box/dns-box
+
   build-sing-box:
     runs-on: ubuntu-latest
     steps:
@@ -103,14 +131,25 @@ jobs:
 
       - name: Install and authenticate GitHub CLI
         run: |
-          sudo apt-get install -y gh
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
+      - name: Download dns-box
+        uses: nick-fields/retry@v3
+        with:
+          timeout_seconds: 5
+          max_attempts: 10
+          command: >-
+            gh run download ${{ github.run_id }} --name dns-box --dir dns-box
+
+      - name: Copy dns-box to embedded
+        run: |
+          cp -r dns-box/dns-box embedded/dnsbox/dns-box
 
       - name: Download sing-box
         uses: nick-fields/retry@v3
         with:
           timeout_seconds: 5
-          max_attempts: 5
+          max_attempts: 10
           command: >-
             gh run download ${{ github.run_id }} --name sing-box --dir sing-box
 
@@ -134,7 +173,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: build-and-release # Зависит от завершения сборки
+    needs: [build-and-release,build-sing-box]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
