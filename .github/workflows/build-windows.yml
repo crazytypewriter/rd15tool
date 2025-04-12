@@ -101,23 +101,27 @@ jobs:
         run: |
           go install github.com/fyne-io/fyne-cross@latest
 
-      - name: Download sing-box artifact with retries
-        run: |
-          for attempt in {1..5}; do
-            echo "Attempt $attempt: Downloading sing-box artifact for run ${{ github.run_id }}..."
-            rm -rf sing-box/ 
-            gh run download ${{ github.run_id }} --name sing-box --dir sing-box
-            if [ $? -eq 0 ] && [ -f sing-box/sing-box ]; then
-              echo "sing-box artifact downloaded successfully"
-              exit 0
-            fi
-            echo "Download failed or file not found, waiting 10 seconds..."
-            sleep 10
-          done
-          echo "Error: Failed to download sing-box artifact after 5 attempts"
-          exit 1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Multi-line multi-command Test
+        uses: nick-fields/retry@v3
+        with:
+          timeout_seconds: 5
+          max_attempts: 5
+          command: |
+            for attempt in {1..5}; do
+              echo "Attempt $attempt: Downloading sing-box artifact for run ${{ github.run_id }}..."
+              rm -rf sing-box/ 
+              gh run download ${{ github.run_id }} --name sing-box --dir sing-box
+              if [ $? -eq 0 ] && [ -f sing-box/sing-box ]; then
+                echo "sing-box artifact downloaded successfully"
+                exit 0
+              fi
+              echo "Download failed or file not found, waiting 10 seconds..."
+              sleep 10
+            done
+            echo "Error: Failed to download sing-box artifact after 5 attempts"
+            exit 1
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Copy sing-box to embedded
         run: |
