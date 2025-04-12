@@ -20,7 +20,7 @@ jobs:
         with:
           repository: crazytypewriter/dns-box
 
-      - name: Initialize and configure go.mod
+      - name: Initialize dependencies
         run: |
           go mod tidy
 
@@ -30,7 +30,7 @@ jobs:
       - name: Build dns-box
         working-directory: dns-box
         run: |
-          GOOS=linux GOARCH=arm GOMIPS=softfloat go build  -ldflags "-s -w" -o dns-box cmd/dns-box/main.go
+          make arm-build
 
       - name: Pack dns-box
         working-directory: dns-box
