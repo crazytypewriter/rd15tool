@@ -122,12 +122,11 @@ jobs:
 
       - name: Copy sing-box to embedded
         run: |
-          cp sing-box embedded/singbox/sing-box
+          cp -r sing-box embedded/singbox/sing-box
 
-
-      - name: Install fyne-cross
+      - name: Copy sing-box debug3
         run: |
-          cp sing-box ./embedded/singbox/sing-box
+          ls -lia embedded/singbox/
 
       - name: Build App
         run: |
