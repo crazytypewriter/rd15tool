@@ -101,13 +101,17 @@ jobs:
         run: |
           go install github.com/fyne-io/fyne-cross@latest
 
-      - name: Multi-line multi-command Test
+      - name: Install and authenticate GitHub CLI
+        run: |
+          sudo apt-get install -y gh
+          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
+      - name: Download sing-box
         uses: nick-fields/retry@v3
         with:
           timeout_seconds: 5
           max_attempts: 5
           command: >-
-            echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
             gh run download ${{ github.run_id }} --name sing-box --dir sing-box
 
       - name: Copy sing-box to embedded
