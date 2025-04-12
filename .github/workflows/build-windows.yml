@@ -163,6 +163,8 @@ jobs:
           command: >-
             gh run download ${{ github.run_id }} --name sing-box --dir sing-box
 
+
+
       - name: Copy sing-box to embedded
         run: |
           cp -r sing-box/sing-box embedded/singbox/sing-box
