@@ -9,6 +9,7 @@ on:
 jobs:
   build-sing-box:
     runs-on: ubuntu-latest
+    steps:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
