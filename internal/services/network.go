@@ -3,6 +3,7 @@ package services
 
 import (
 	"fmt"
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
 	"io"
 	"net"
@@ -36,7 +37,9 @@ func (ns *NetworkService) ScanSubnet(ipInput *widget.Entry) {
 
 	select {
 	case ip := <-resultChan:
-		ipInput.SetText(ip)
+		fyne.Do(func() {
+			ipInput.SetText(ip)
+		})
 	}
 }
 

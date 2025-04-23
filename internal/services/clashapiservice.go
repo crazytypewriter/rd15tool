@@ -131,9 +131,7 @@ func (wg *WebSocketGraph) connectAndStream(done chan struct{}) {
 			wg.drawBrokenCurve(wg.plot, wg.dataDown, maxVal, step, color.RGBA{R: 0, G: 0, B: 255, A: 255})
 			wg.addScale(maxVal)
 
-			fyne.Do(func() {
-				wg.plot.Refresh()
-			})
+			wg.plot.Refresh()
 		}
 	}
 }

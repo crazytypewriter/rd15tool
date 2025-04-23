@@ -80,8 +80,9 @@ func (aw *AppWindow) setupUI() {
 	aw.UI.RebootButton.OnTapped = aw.handleReboot
 
 	//aw.UI.CopyFilesButton.OnTapped = aw.handleCopyFiles
-
+	//fyne.DoAndWait(func() {/**/
 	go aw.Services.ScanSubnet(aw.UI.IPInput)
+	//})
 	aw.UI.IPInput.OnChanged = func(s string) {
 		authClient := router.NewAuthClient(aw)
 		var r = authClient.GetRouterInfo(aw.UI.IPInput.Text)
@@ -91,8 +92,11 @@ func (aw *AppWindow) setupUI() {
 		if r.Inited == 0 {
 			aw.LogWrite("Please setup router setup first time.")
 		}
-		sshPass := aw.AuthClient.CalcPasswd(r.ID)
-		aw.UI.SSHPasswordInput.SetText(sshPass)
+		var sshPass string
+		sshPass = aw.AuthClient.CalcPasswd(r.ID)
+		fyne.Do(func() {
+			aw.UI.SSHPasswordInput.SetText(sshPass)
+		})
 
 		aw.SSHClient = router.NewSSHManager(aw, aw, sshPass)
 
@@ -106,7 +110,7 @@ func (aw *AppWindow) setupUI() {
 		aw.UI.RouterImage.Show()
 	}
 
-	aw.ClashAPIService.StartMonitoring(aw.UI.TrafficGraphContainer)
+	//go aw.ClashAPIService.StartMonitoring(aw.UI.TrafficGraphContainer)
 }
 
 func (aw *AppWindow) handleSSHLogin() {
