@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Домен и поддомены активной вкладки</title>
+  <style>
+    body { font-family: sans-serif; padding: 10px; }
+    ul { list-style-type: none; padding: 0; }
+    li { margin-bottom: 5px; }
+    button { margin-top: 10px; }
+  </style>
+  <script src="popup.js" defer></script>
+</head>
+<body>
+  <h3>Список домена и поддоменов активной вкладки:</h3>
+  <ul id="domainList">Загрузка...</ul>
+  <label><input type="checkbox" id="selectAll"> Выбрать все</label>
+  <br>
+  <button id="sendSelected">Добавить в VPN</button>
+  <button id="sendSelectedDel">Удалить из VPN</button>
+  <div id="result" style="margin-top: 10px;"></div>
+</body>
+</html>
