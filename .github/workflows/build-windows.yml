@@ -92,7 +92,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        platform: [windows-amd64, linux-amd64] # Сборка для Windows и Linux
+        platform: [windows-amd64, linux-amd64]
     env:
       GOPRIVATE: github.com/crazytypewriter/sing-lib
     steps:
