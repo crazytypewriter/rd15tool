@@ -1,4 +1,4 @@
-name: Build and Release Fyne App
+name: Build and Release App
 
 on:
   push:
