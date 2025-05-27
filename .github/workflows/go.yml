@@ -3,12 +3,8 @@ name: Build and Release App
 on:
   push:
     branches: [main]
-    paths:
-      - "!chrome_plugin/**"
   pull_request:
     branches: [main]
-    paths:
-      - "!chrome_plugin/**"
 
 jobs:
   build-dns-box:
