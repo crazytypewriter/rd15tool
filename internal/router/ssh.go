@@ -129,9 +129,9 @@ func (sm *SSHManager) InstallSingBox(ip, password string) bool {
 	if !sm.copyEmbeddedFileWithProgress(client, "Copying init.d file", embedded.SingBoxIni, "/etc/init.d/sing-box") {
 		return false
 	}
-	if !sm.copyEmbeddedFileWithProgress(client, "Copying sing-box config", embedded.SingBoxConfig, "/data/sing-box/config.json") {
-		return false
-	}
+	//if !sm.copyEmbeddedFileWithProgress(client, "Copying sing-box config", embedded.SingBoxConfig, "/data/sing-box/config.json") {
+	//	return false
+	//}
 
 	return true
 }

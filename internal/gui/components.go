@@ -111,7 +111,7 @@ func NewComponents() *Components {
 	}
 
 	c.StokInput.Disable()
-	c.SSHPasswordInput.Disable()
+	//c.SSHPasswordInput.Disable()
 	c.SSHEnabled.Disable()
 	c.RouterImage.SetMinSize(fyne.NewSize(75, 75))
 	c.RouterImage.FillMode = canvas.ImageFillContain

@@ -80,37 +80,40 @@ func (aw *AppWindow) setupUI() {
 	aw.UI.RebootButton.OnTapped = aw.handleReboot
 
 	//aw.UI.CopyFilesButton.OnTapped = aw.handleCopyFiles
-	//fyne.DoAndWait(func() {/**/
-	go aw.Services.ScanSubnet(aw.UI.IPInput)
-	//})
-	aw.UI.IPInput.OnChanged = func(s string) {
-		authClient := router.NewAuthClient(aw)
-		var r = authClient.GetRouterInfo(aw.UI.IPInput.Text)
-		if r == nil {
-			aw.LogWrite("Error when get router info")
-		}
-		if r.Inited == 0 {
-			aw.LogWrite("Please setup router setup first time.")
-		}
-		var sshPass string
-		sshPass = aw.AuthClient.CalcPasswd(r.ID)
-		fyne.Do(func() {
+	fyne.DoAndWait(func() { /**/
+		aw.Services.ScanSubnet(aw.UI.IPInput)
+	})
+	fyne.DoAndWait(func() {
+		aw.UI.IPInput.OnChanged = func(s string) {
+			authClient := router.NewAuthClient(aw)
+			var r = authClient.GetRouterInfo(aw.UI.IPInput.Text)
+			if r == nil {
+				aw.LogWrite("Error when get router info")
+			}
+			if r.Inited == 0 {
+				aw.LogWrite("Please setup router setup first time.")
+			}
+			var sshPass string
+			sshPass = aw.AuthClient.CalcPasswd(r.ID)
+			//fyne.DoAndWait(func() {
 			aw.UI.SSHPasswordInput.SetText(sshPass)
-		})
+			//})
 
-		aw.SSHClient = router.NewSSHManager(aw, aw, sshPass)
+			aw.SSHClient = router.NewSSHManager(aw, aw, sshPass)
 
-		imageData, err := embedded.GetRouterImage(r.Hardware)
-		if err != nil {
-			aw.LogWrite(fmt.Sprintf("Error image loading: %v", err))
-			return
+			imageData, err := embedded.GetRouterImage(r.Hardware)
+			if err != nil {
+				aw.LogWrite(fmt.Sprintf("Error image loading: %v", err))
+				return
+			}
+			aw.UI.RouterImage.Resource = fyne.NewStaticResource(r.Model, imageData)
+			aw.UI.RouterImage.Refresh()
+			aw.UI.RouterImage.Show()
 		}
-		aw.UI.RouterImage.Resource = fyne.NewStaticResource(r.Model, imageData)
-		aw.UI.RouterImage.Refresh()
-		aw.UI.RouterImage.Show()
-	}
+	})
 
 	//go aw.ClashAPIService.StartMonitoring(aw.UI.TrafficGraphContainer)
+
 }
 
 func (aw *AppWindow) handleSSHLogin() {
@@ -303,8 +306,13 @@ func (aw *AppWindow) LogWriteNoNewLine(message string) {
 	} else {
 		aw.UI.LogContent += message
 	}
-	aw.UI.LogText.SetText(aw.UI.LogContent)
-	aw.UI.LogScroll.ScrollToBottom()
+	fyne.DoAndWait(func() {
+		aw.UI.LogText.SetText(aw.UI.LogContent)
+	})
+	fyne.DoAndWait(func() {
+		aw.UI.LogScroll.ScrollToBottom()
+	})
+
 }
 
 func (aw *AppWindow) LogWrite(message string) {

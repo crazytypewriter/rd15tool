@@ -37,7 +37,7 @@ func (ns *NetworkService) ScanSubnet(ipInput *widget.Entry) {
 
 	select {
 	case ip := <-resultChan:
-		fyne.Do(func() {
+		fyne.DoAndWait(func() {
 			ipInput.SetText(ip)
 		})
 	}
