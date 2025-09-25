@@ -185,7 +185,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [build-and-release,build-sing-box,build-dns-box]
+    needs: [build-and-release, build-sing-box, build-dns-box]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -201,6 +201,18 @@ jobs:
         with:
           name: rd15tool-linux-amd64
           path: fyne-cross/dist/linux-amd64/
+
+      - name: Download sing-box artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sing-box
+          path: sing-box/
+
+      - name: Download dns-box artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dns-box
+          path: dns-box/
 
       - name: Install and authenticate GitHub CLI
         run: |
@@ -220,8 +232,11 @@ jobs:
             NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
           fi
           COMMIT_HASH=$(git rev-parse --short HEAD)
+  
           gh release create "$NEW_TAG" \
             fyne-cross/dist/windows-amd64/rd15tool.exe.zip \
             fyne-cross/dist/linux-amd64/rd15tool.tar.xz \
+            sing-box/sing-box \
+            dns-box/dns-box \
             --title "$NEW_TAG" \
-            --notes "Release created from commit $COMMIT_HASH. Includes Windows and Linux builds."
+            --notes "Release created from commit $COMMIT_HASH. Includes Windows, Linux, sing-box and dns-box builds."
