@@ -4,9 +4,6 @@ package router
 import (
 	"bytes"
 	"fmt"
-	"github.com/crazytypewriter/rd15tool/embedded"
-	"github.com/crazytypewriter/rd15tool/pkg/interfaces"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"os"
 	"os/exec"
@@ -14,6 +11,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/crazytypewriter/rd15tool/embedded"
+	"github.com/crazytypewriter/rd15tool/pkg/interfaces"
+	"golang.org/x/crypto/ssh"
 )
 
 type SSHManager struct {
@@ -123,7 +124,7 @@ func (sm *SSHManager) InstallSingBox(ip, password string) bool {
 	}
 	defer client.Close()
 
-	if !sm.copyEmbeddedFileWithProgress(client, "Copying sing-box binary", embedded.SingBoxBinary, "/data/sing-box/sing-box") {
+	if !sm.copyEmbeddedFileWithProgress(client, "Copying sing-box binary", embedded.SingBoxBinary, "/tmp/sing-box/sing-box") {
 		return false
 	}
 	if !sm.copyEmbeddedFileWithProgress(client, "Copying init.d file", embedded.SingBoxIni, "/etc/init.d/sing-box") {
@@ -144,7 +145,7 @@ func (sm *SSHManager) UninstallSingBox(ip, password string) bool {
 	}
 	defer client.Close()
 
-	removeFilesCmd := "rm -rf /data/sing-box /data/etc/sing-box /etc/init.d/sing-box /etc/crontabs/patches/singbox_patch.sh"
+	removeFilesCmd := "rm -rf /tmp/sing-box /data/etc/sing-box /etc/init.d/sing-box /etc/crontabs/patches/singbox_patch.sh"
 	_, err = runSSHCommand(client, removeFilesCmd)
 	if err != nil {
 		sm.logWriter.LogWrite(fmt.Sprintf("Error removing sing-box files: %s", err.Error()))
