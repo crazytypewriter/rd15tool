@@ -49,6 +49,8 @@ jobs:
 
   build-sing-box:
     runs-on: ubuntu-latest
+    outputs:
+      singbox_tag: ${{ steps.sing-box-tag.outputs.tag }}
     steps:
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -58,6 +60,7 @@ jobs:
         run: |
           LATEST_SING_BOX_TAG=$(gh release list --repo SagerNet/sing-box --limit 1 --exclude-pre-releases --json tagName --jq '.[0].tagName' | tr -d 'v')
           echo "SING_BOX_TAG=$LATEST_SING_BOX_TAG" >> $GITHUB_ENV
+          echo "tag=$LATEST_SING_BOX_TAG" >> $GITHUB_OUTPUT
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -232,11 +235,13 @@ jobs:
             NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
           fi
           COMMIT_HASH=$(git rev-parse --short HEAD)
+
+          SINGBOX_VERSION="${{ needs.build-sing-box.outputs.singbox_tag }}"
   
           gh release create "$NEW_TAG" \
             fyne-cross/dist/windows-amd64/rd15tool.exe.zip \
             fyne-cross/dist/linux-amd64/rd15tool.tar.xz \
-            sing-box/sing-box \
+            sing-box/sing-box#$SINGBOX_VERSION  \
             dns-box/dns-box \
             --title "$NEW_TAG" \
             --notes "Release created from commit $COMMIT_HASH. Includes Windows, Linux, sing-box and dns-box builds."
