@@ -96,3 +96,5 @@ chmod +x  /etc/init.d/sing-box
 /etc/init.d/sing-box enable
 
 /etc/init.d/sing-box start
+
+echo "singbox enabled" > /tmp/singbox_patch.log
